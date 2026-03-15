@@ -39,5 +39,5 @@ RUN useradd -m deployuser \
 USER deployuser
 
 EXPOSE 8000
-
+RUN python manage.py collectstatic --noinput
 CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "4", "--threads", "4", "--timeout", "1000", "--graceful-timeout", "30", "--keep-alive", "5"]
