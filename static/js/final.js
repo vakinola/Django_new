@@ -489,12 +489,30 @@ document.addEventListener("DOMContentLoaded", () => {
       };
 
       xhr.addEventListener("load", () => {
-              __clientUploading = false;
-              window.__uploadFloor = 45;
+        __clientUploading = false;
+        window.__uploadFloor = 45;
 
-              // Smoothly animate from current position to 45%
-              animateToTarget(bar, label, 45, "Processing", 600);
-            });
+        animateToTarget(bar, label, 45, "Processing", 400);
+
+        let bridgePct = 45;
+        window.__bridgeInterval = setInterval(() => {
+          bridgePct += 1;
+          if (bridgePct >= 65) {
+            clearInterval(window.__bridgeInterval);
+            window.__bridgeInterval = null;
+            return;
+          }
+          const currentBar = parseFloat(bar.style.width) || 0;
+          if (currentBar < bridgePct) {
+            bar.style.width = bridgePct + "%";
+            if (label) label.textContent = `Processing… ${bridgePct}%`;
+            window.__uploadFloor = bridgePct;
+          } else {
+            clearInterval(window.__bridgeInterval);
+            window.__bridgeInterval = null;
+          }
+        }, 800);
+      });
 
       xhr.addEventListener("error", () => {
         __clientUploading = false;
@@ -519,23 +537,25 @@ document.addEventListener("DOMContentLoaded", () => {
   // Poller handles progress updates
   // ==============================
   function animateToTarget(bar, label, targetPct, phaseText, durationMs = 800) {
-  if (!bar) return;
-  if (window.__animFrame) cancelAnimationFrame(window.__animFrame);
+    if (!bar) return;
+    if (window.__animFrame) cancelAnimationFrame(window.__animFrame);
 
-  const from = parseFloat(bar.style.width) || 0;
-  if (from >= targetPct) return; // never go backwards
+    const from = parseFloat(bar.style.width) || 0;
+    if (from >= targetPct) return;
 
-  const start = performance.now();
+    const start = performance.now();
 
-  function step(now) {
-    const p = Math.min(1, (now - start) / durationMs);
-    const val = from + (targetPct - from) * p;
-    bar.style.width = val.toFixed(1) + "%";
-    if (label) label.textContent = `${phaseText}… ${Math.round(val)}%`;
-    if (p < 1) window.__animFrame = requestAnimationFrame(step);
+    function step(now) {
+      const p = Math.min(1, (now - start) / durationMs);
+      const val = from + (targetPct - from) * p;
+      bar.style.width = val.toFixed(1) + "%";
+      if (label) label.textContent = `${phaseText}… ${Math.round(val)}%`;
+      if (p < 1) window.__animFrame = requestAnimationFrame(step);
+      else window.__animFrame = null;
+    }
+
+    window.__animFrame = requestAnimationFrame(step);
   }
-
-  window.__animFrame = requestAnimationFrame(step);}
 
 
   function startProgressPoller(jobId) {
@@ -588,10 +608,10 @@ document.addEventListener("DOMContentLoaded", () => {
         // Never allow progress to move backwards
         if (pct < lastPct) {
           pct = lastPct;
+        } else {
+          lastPct = pct;
         }
 
-        // Accept this update
-        lastPct = pct;
         lastPhase = phase;
 
         // While client upload is active, ignore server upload < 40
