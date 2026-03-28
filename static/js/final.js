@@ -489,13 +489,12 @@ document.addEventListener("DOMContentLoaded", () => {
       };
 
       xhr.addEventListener("load", () => {
-        // Upload finished (server processing will take over 40->100)
-        __clientUploading = false;
+              __clientUploading = false;
+              window.__uploadFloor = 40;
 
-        // If upload completed too fast, force bar to 40 immediately
-        if (bar && __clientUploadPct < 40) bar.style.width = "40%";
-        if (label && __clientUploadPct < 40) label.textContent = "Uploading… 40%";
-      });
+              // Smoothly animate from current position to 45%
+              animateToTarget(bar, label, 45, "Processing", 600);
+            });
 
       xhr.addEventListener("error", () => {
         __clientUploading = false;
@@ -519,8 +518,29 @@ document.addEventListener("DOMContentLoaded", () => {
   // ==============================
   // Poller handles progress updates
   // ==============================
+  function animateToTarget(bar, label, targetPct, phaseText, durationMs = 800) {
+  if (!bar) return;
+  if (window.__animFrame) cancelAnimationFrame(window.__animFrame);
+
+  const from = parseFloat(bar.style.width) || 0;
+  if (from >= targetPct) return; // never go backwards
+
+  const start = performance.now();
+
+  function step(now) {
+    const p = Math.min(1, (now - start) / durationMs);
+    const val = from + (targetPct - from) * p;
+    bar.style.width = val.toFixed(1) + "%";
+    if (label) label.textContent = `${phaseText}… ${Math.round(val)}%`;
+    if (p < 1) window.__animFrame = requestAnimationFrame(step);
+  }
+
+  window.__animFrame = requestAnimationFrame(step);}
+
+
   function startProgressPoller(jobId) {
-    let lastPct = 0;
+    let lastPct = window.__uploadFloor || 0;
+    window.__uploadFloor = 0;
     let lastPhase = "";
     const buildProgress = document.getElementById("buildProgress");
     const buildBar = document.getElementById("buildBar");
@@ -558,7 +578,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         // Never allow progress to move backwards
-        if (pct < lastPct && phase !== "error") {
+        if (pct < lastPct) {
           pct = lastPct;
         }
 
@@ -571,10 +591,13 @@ document.addEventListener("DOMContentLoaded", () => {
           return;
         }
 
-        buildBar.style.width = pct + "%";
-        buildLabel.textContent = `${data.phase || "Working"}… ${pct}%`;
-
-        if (phase === "processing" || phase === "summarizing" || phase === "queued") {
+        // Cancel any running animation before updating
+        if (window.__animFrame) {
+          cancelAnimationFrame(window.__animFrame);
+          window.__animFrame = null;
+        }
+        animateToTarget(buildBar, buildLabel, pct, data.phase || "Working", 400);
+        if (phase !== "completed" && phase !== "error") {
           buildBar.classList.add("processing");
         } else {
           buildBar.classList.remove("processing");

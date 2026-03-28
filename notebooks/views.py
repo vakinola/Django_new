@@ -177,14 +177,14 @@ def _process_job(job_id: str, text: str, persist_dir: str, filename: str, start_
         update("Processing", 5)
         text_splitter = CharacterTextSplitter(separator=" ", chunk_size=5000, chunk_overlap=100)
         docs = text_splitter.split_text(text) if text else []
-        update("Processing document", 10)
+        update("processing", 10)
 
         # Build embeddings + DB - 10% -> 15%
         update("Processing", 12)
         client = get_openai_client()
         embeddings = OpenAIEmbeddings(model="text-embedding-3-large", openai_api_key=client.api_key)
         vectordb = Chroma(embedding_function=embeddings, persist_directory=persist_dir)
-        update("Processing document", 15)
+        update("processing", 15)
 
         #Embed chunks - 15% -> 75%
         total = max(len(docs), 1)
@@ -195,24 +195,24 @@ def _process_job(job_id: str, text: str, persist_dir: str, filename: str, start_
 
             # Tick upward BEFORE the API call so UI feels responsive
             pre_pct = 15 + int(60 * added / total)
-            update("Processing document", pre_pct)
+            update("processing", pre_pct)
 
             vectordb.add_texts(chunk)
             added += len(chunk)
 
             # Tick again AFTER so the bar moves on completion too
             post_pct = 15 + int(60 * added / total)
-            update("Processing document", post_pct)
+            update("processing", post_pct)
 
         # Retrieving content — 75% → 80%
-        update("Processing document", 77)
+        update("processing", 77)
         raw = vectordb.get(include=["documents"])
         sample = (raw.get("documents") or [])[:15]
         prompt = get_document_prompt(sample) if sample else "No content available."
-        update("Processing document", 80)
+        update("processing", 80)
 
         # Summarizing — 80% → 95% (streamed ticks while waiting)
-        update("Processing document", 82)
+        update("processing", 82)
 
         system_message = (
             f"Generate a summary of the following notebook content::\n\n"
