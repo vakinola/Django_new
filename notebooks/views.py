@@ -167,36 +167,52 @@ def _get_safe_redirect_url(request):
 
 def _process_job(job_id: str, text: str, persist_dir: str, filename: str, start_pct: int = 10, end_pct: int = 100):
 
+    def update(phase, pct, **extra):
+        cache.set(f"job:{job_id}", {"phase": phase, "pct": pct, **extra}, timeout=3600)
     try:
-        cache.set(f"job:{job_id}", {"phase": "Processing", "pct": 5}, timeout=3600)
+        update("Preparing", 2)
         os.makedirs(persist_dir, exist_ok=True)
 
-        # Split text
-        cache.set(f"job:{job_id}", {"phase": "Processing", "pct": 10}, timeout=3600)
+        # Split text - 2% -> 10%
+        update("Processing", 5)
         text_splitter = CharacterTextSplitter(separator=" ", chunk_size=5000, chunk_overlap=100)
         docs = text_splitter.split_text(text) if text else []
+        update("Processing document", 10)
 
-        # Build embeddings + DB
-        cache.set(f"job:{job_id}", {"phase": "Processing", "pct": 20}, timeout=3600)   
+        # Build embeddings + DB - 10% -> 15%
+        update("Processing", 12)
         client = get_openai_client()
         embeddings = OpenAIEmbeddings(model="text-embedding-3-large", openai_api_key=client.api_key)
         vectordb = Chroma(embedding_function=embeddings, persist_directory=persist_dir)
+        update("Processing document", 15)
 
+        #Embed chunks - 15% -> 75%
         total = max(len(docs), 1)
         batch = 25
         added = 0
         for i in range(0, len(docs), batch):
             chunk = docs[i:i + batch]
+
+            # Tick upward BEFORE the API call so UI feels responsive
+            pre_pct = 15 + int(60 * added / total)
+            update("Processing document", pre_pct)
+
             vectordb.add_texts(chunk)
             added += len(chunk)
-            local_pct = 20 + (60 * added / total)  # smooth 20→80
-            cache.set(f"job:{job_id}", {"phase": "Processing", "pct": int(local_pct)}, timeout=3600)
 
-        # Summarize
-        cache.set(f"job:{job_id}", {"phase": "Summarizing", "pct": 85}, timeout=3600)
+            # Tick again AFTER so the bar moves on completion too
+            post_pct = 15 + int(60 * added / total)
+            update("Processing document", post_pct)
+
+        # Retrieving content — 75% → 80%
+        update("Processing document", 77)
         raw = vectordb.get(include=["documents"])
         sample = (raw.get("documents") or [])[:15]
         prompt = get_document_prompt(sample) if sample else "No content available."
+        update("Processing document", 80)
+
+        # Summarizing — 80% → 95% (streamed ticks while waiting)
+        update("Processing document", 82)
 
         system_message = (
             f"Generate a summary of the following notebook content::\n\n"
@@ -211,22 +227,29 @@ def _process_job(job_id: str, text: str, persist_dir: str, filename: str, start_
             "If the document has multiple sections, break it into meaningful segments."
         )
 
-        resp = get_openai_client().chat.completions.create(
+        # Use streaming so we can tick progress while waiting for OpenAI
+        update("Summarizing", 85)
+        summary_text = ""
+        pct = 85
+        with get_openai_client().chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "system", "content": system_message}],
             temperature=0.2,
-        )
-        summary_text = resp.choices[0].message.content
+            stream=True,   # ← stream tokens
+        ) as stream:
+            for chunk in stream:
+                delta = chunk.choices[0].delta.content or ""
+                summary_text += delta
+                if pct < 95:
+                    pct += 1   # increment 1% per token batch — smooth crawl to 95
+                    update("Summarizing", pct)
 
-        cache.set(f"job:{job_id}", {
-            "phase": "completed",
-            "pct": 100,
-            "summary": summary_text,
-            "filename": filename,
-        }, timeout=3600)
+        # Done
+        update("completed", 100, summary=summary_text, filename=filename)
 
     except Exception as e:
-        cache.set(f"job:{job_id}", {"phase": "error", "pct": end_pct, "error": str(e)}, timeout=3600)
+        cache.set(f"job:{job_id}", {"phase": "error", "pct": 0, "error": str(e)}, timeout=3600)
+
 
 # ---------- Views (routes) ----------
 
@@ -735,4 +758,3 @@ def send_feedback(request):
         logging.getLogger(__name__).exception("feedback send failed")
         # tell the client what went wrong (remove before production)
         return JsonResponse({"status": "error", "message": f"Unable to send feedback: {e}"})
-    
