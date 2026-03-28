@@ -167,8 +167,11 @@ def _get_safe_redirect_url(request):
 
 def _process_job(job_id: str, text: str, persist_dir: str, filename: str, start_pct: int = 10, end_pct: int = 100):
 
+    _update_floor = [0]
     def update(phase, pct, **extra):
-        cache.set(f"job:{job_id}", {"phase": phase, "pct": pct, **extra}, timeout=3600)
+        safe_pct = max(pct, _update_floor[0])
+        _update_floor[0] = safe_pct
+        cache.set(f"job:{job_id}", {"phase": phase, "pct": safe_pct, **extra}, timeout=3600)
     try:
         update("Preparing", 2)
         os.makedirs(persist_dir, exist_ok=True)
