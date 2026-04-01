@@ -1,4 +1,4 @@
-#Python utitlities
+# Python utitlities
 import os
 import re
 import uuid
@@ -11,47 +11,59 @@ from threading import Thread
 from datetime import datetime
 from pathlib import Path
 
-#Django web framework tools
+import requests as http_requests
+import secrets
+import urllib.parse
+
+# Django web framework tools
 from django.conf import settings
 from django.http import JsonResponse, HttpResponseNotAllowed
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout, get_user_model
+from django.contrib.auth.forms import PasswordResetForm, SetPasswordForm
+from django.contrib.auth.tokens import default_token_generator
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
+from django.utils.http import urlsafe_base64_decode
+from django.utils.encoding import force_str
 from django.views.decorators.http import require_GET, require_POST
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.cache import never_cache
 from django.core.cache import cache
 
-#Document parsing
+# Document parsing
 from pypdf import PdfReader
 import docx
 from pptx import Presentation
 
-#AI pipeline
+# AI pipeline
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import CharacterTextSplitter
 from openai import OpenAI
 
-#Email sending
+# Email sending
 from django.core.mail import send_mail
 
-#Logging 
+# Logging
 log = logging.getLogger("timing")
 log.setLevel(logging.INFO)
-logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s"
+)
 User = get_user_model()
 
 
-#Helpers
+# Helpers
+
 
 def allowed_file(filename: str) -> bool:
     allowed = {"pdf", "docx", "txt", "pptx"}
     return "." in filename and filename.rsplit(".", 1)[1].lower() in allowed
 
+
 def secure_filename(name: str) -> str:
-    name= os.path.basename(name)
+    name = os.path.basename(name)
     name = re.sub(r"[^A-Za-z0-9.\-_]+", "_", name)
     return name.strip("._") or f"upload_{uuid.uuid4().hex}"
 
@@ -78,7 +90,6 @@ def extract_text_from_pdf(file_path: str) -> str:
     except Exception as e:
         return f"Error extracting text from PDF: {e}"
 
-    
 
 def extract_text_from_docx(file_path: str) -> str:
     try:
@@ -92,7 +103,6 @@ def extract_text_from_docx(file_path: str) -> str:
         return "\n".join(parts)
     except Exception as e:
         return f"Error extracting text from DOCX: {e}"
-    
 
 
 def extract_text_from_pptx(file_path: str) -> str:
@@ -107,7 +117,6 @@ def extract_text_from_pptx(file_path: str) -> str:
         return "\n".join(parts).strip()
     except Exception as e:
         return f"Error extracting text from PPTX: {e}"
-
 
 
 def process_uploaded_file(django_file):
@@ -165,36 +174,79 @@ def _get_safe_redirect_url(request):
     return request.META.get("HTTP_REFERER") or "/"
 
 
-def _process_job(job_id: str, text: str, persist_dir: str, filename: str, start_pct: int = 10, end_pct: int = 100):
+def _get_client_ip(request):
+    forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR", "unknown")
+
+
+def _is_rate_limited(request, action, max_attempts):
+    """Read-only check — returns True if this IP is over the limit."""
+    ip = _get_client_ip(request)
+    return cache.get(f"rl:{action}:{ip}", 0) >= max_attempts
+
+
+def _record_attempt(request, action, window_seconds):
+    """
+    Increment the attempt counter for this IP.
+    Uses cache.add on the first attempt so the window is fixed from that
+    point. Subsequent calls use cache.incr which does not reset the timeout.
+    """
+    ip = _get_client_ip(request)
+    key = f"rl:{action}:{ip}"
+    if not cache.add(key, 1, timeout=window_seconds):
+        try:
+            cache.incr(key)
+        except ValueError:
+            pass  # key expired between add and incr — harmless
+
+
+def _process_job(
+    job_id: str,
+    text: str,
+    persist_dir: str,
+    filename: str,
+    start_pct: int = 10,
+    end_pct: int = 100,
+):
 
     _update_floor = [0]
+
     def update(phase, pct, **extra):
         safe_pct = max(pct, _update_floor[0])
         _update_floor[0] = safe_pct
-        cache.set(f"job:{job_id}", {"phase": phase, "pct": safe_pct, **extra}, timeout=3600)
+        cache.set(
+            f"job:{job_id}", {"phase": phase, "pct": safe_pct, **extra}, timeout=3600
+        )
+
     try:
         update("Preparing", 2)
         os.makedirs(persist_dir, exist_ok=True)
 
         # Split text - 2% -> 10%
         update("Processing", 5)
-        text_splitter = CharacterTextSplitter(separator=" ", chunk_size=5000, chunk_overlap=100)
+        text_splitter = CharacterTextSplitter(
+            separator=" ", chunk_size=5000, chunk_overlap=100
+        )
         docs = text_splitter.split_text(text) if text else []
         update("processing", 10)
 
         # Build embeddings + DB - 10% -> 15%
         update("Processing", 12)
         client = get_openai_client()
-        embeddings = OpenAIEmbeddings(model="text-embedding-3-large", openai_api_key=client.api_key)
+        embeddings = OpenAIEmbeddings(
+            model="text-embedding-3-large", openai_api_key=client.api_key
+        )
         vectordb = Chroma(embedding_function=embeddings, persist_directory=persist_dir)
         update("processing", 15)
 
-        #Embed chunks - 15% -> 75%
+        # Embed chunks - 15% -> 75%
         total = max(len(docs), 1)
         batch = 25
         added = 0
         for i in range(0, len(docs), batch):
-            chunk = docs[i:i + batch]
+            chunk = docs[i : i + batch]
 
             # Tick upward BEFORE the API call so UI feels responsive
             pre_pct = 15 + int(60 * added / total)
@@ -238,35 +290,46 @@ def _process_job(job_id: str, text: str, persist_dir: str, filename: str, start_
             model="gpt-4o-mini",
             messages=[{"role": "system", "content": system_message}],
             temperature=0.2,
-            stream=True,   # ← stream tokens
+            stream=True,  # ← stream tokens
         ) as stream:
             for chunk in stream:
                 delta = chunk.choices[0].delta.content or ""
                 summary_text += delta
                 if pct < 95:
-                    pct += 1   # increment 1% per token batch — smooth crawl to 95
+                    pct += 1  # increment 1% per token batch — smooth crawl to 95
                     update("Summarizing", pct)
 
         # Done
         update("completed", 100, summary=summary_text, filename=filename)
 
     except Exception as e:
-        cache.set(f"job:{job_id}", {"phase": "error", "pct": 0, "error": str(e)}, timeout=3600)
+        cache.set(
+            f"job:{job_id}", {"phase": "error", "pct": 0, "error": str(e)}, timeout=3600
+        )
 
 
 # ---------- Views (routes) ----------
+
 
 @require_GET
 def home(request):
     return render(request, "home.html")
 
 
+@never_cache
 @require_POST
 def register_user(request):
+    redirect_url = _get_safe_redirect_url(request)
+
+    if _is_rate_limited(request, "register", max_attempts=5):
+        messages.error(request, "Too many sign-up attempts. Please try again in an hour.", extra_tags="auth-signup")
+        return redirect(redirect_url)
+
+    _record_attempt(request, "register", window_seconds=3600)
+
     name = (request.POST.get("name") or "").strip()
     email = (request.POST.get("email") or "").strip().lower()
     password = request.POST.get("password") or ""
-    redirect_url = _get_safe_redirect_url(request)
 
     if not name or not email or not password:
         messages.error(request, "Enter name, email, and password.", extra_tags="auth-signup")
@@ -302,12 +365,18 @@ def register_user(request):
     return redirect(redirect_url)
 
 
+@never_cache
 @require_POST
 def login_user(request):
+    redirect_url = _get_safe_redirect_url(request)
+
+    if _is_rate_limited(request, "login", max_attempts=10):
+        messages.error(request, "Too many login attempts. Please try again in 15 minutes.", extra_tags="auth-login")
+        return redirect(redirect_url)
+
     email = (request.POST.get("email") or "").strip().lower()
     password = request.POST.get("password") or ""
     remember = request.POST.get("remember")
-    redirect_url = _get_safe_redirect_url(request)
 
     if not email or not password:
         messages.error(request, "Enter email and password.", extra_tags="auth-login")
@@ -315,6 +384,7 @@ def login_user(request):
 
     user = authenticate(request, username=email, password=password)
     if user is None:
+        _record_attempt(request, "login", window_seconds=900)  # only count failures
         messages.error(request, "Invalid email or password.", extra_tags="auth-login")
         return redirect(redirect_url)
 
@@ -324,11 +394,13 @@ def login_user(request):
     return redirect(redirect_url)
 
 
+@never_cache
 @require_POST
 def logout_user(request):
     logout(request)
     messages.success(request, "You have been signed out.")
     return redirect(_get_safe_redirect_url(request))
+
 
 def _get_upload_page_context(request):
     job_id = request.session.get("job_id")
@@ -342,7 +414,9 @@ def _get_upload_page_context(request):
 
             if filename:
                 info = docs.get(filename, {})
-                info["persist_dir"] = info.get("persist_dir") or request.session.get("persist_directory")
+                info["persist_dir"] = info.get("persist_dir") or request.session.get(
+                    "persist_directory"
+                )
                 info["summary"] = st["summary"]
                 docs[filename] = info
                 request.session["docs"] = docs
@@ -355,7 +429,10 @@ def _get_upload_page_context(request):
             job_id = None
 
         elif phase == "error":
-            messages.error(request, f"⚠️ Could not build index or generate summary: {st.get('error')}")
+            messages.error(
+                request,
+                f"⚠️ Could not build index or generate summary: {st.get('error')}",
+            )
             cache.delete(f"job:{job_id}")
             request.session.pop("job_id", None)
             job_id = None
@@ -368,15 +445,14 @@ def _get_upload_page_context(request):
 
 
 def privacy_policy(request):
-    return render(request, "privacy_policy.html", _get_upload_page_context(request))
+    return render(request, "privacy_policy.html")
+
 
 def terms_of_service(request):
     return render(request, "terms_of_service.html")
 
 
-
 @require_POST
-@csrf_exempt  # if you post via fetch without CSRF token; remove if you include CSRF token in JS
 def delete_doc(request):
     try:
         data = getattr(request, "json", None)
@@ -405,21 +481,21 @@ def delete_doc(request):
         return JsonResponse({"ok": False, "error": "No database path stored for this document."}, status=500)
 
     persist_dir = os.path.abspath(persist_dir)
-    if not os.path.isdir(persist_dir):
-        return JsonResponse({"ok": False, "error": f"Database folder not found: {persist_dir}"}, status=404)
+    if os.path.isdir(persist_dir):
+        last_err = None
+        for attempt in range(3):
+            try:
+                shutil.rmtree(persist_dir, onerror=_on_rm_error)
+                last_err = None
+                break
+            except Exception as e:
+                last_err = e
+                time.sleep(0.3)
 
-    last_err = None
-    for attempt in range(3):
-        try:
-            shutil.rmtree(persist_dir, onerror=_on_rm_error)
-            last_err = None
-            break
-        except Exception as e:
-            last_err = e
-            time.sleep(0.3)
-
-    if last_err:
-        return JsonResponse({"ok": False, "error": f"Failed to delete database: {last_err}"}, status=500)
+        if last_err:
+            import logging
+            logging.getLogger(__name__).error("Failed to delete database at %s: %s", persist_dir, last_err)
+            return JsonResponse({"ok": False, "error": "Failed to delete the database. Please try again."}, status=500)
 
     docs.pop(filename, None)
     request.session["docs"] = docs
@@ -429,9 +505,34 @@ def delete_doc(request):
         request.session.pop("summary_text", None)
         request.session.pop("persist_directory", None)
 
+    # Also remove the uploaded source file from disk and session list — safely
+    try:
+        uploaded_files = request.session.get("uploaded_files", [])
+        if filename in uploaded_files:
+            uploaded_files.remove(filename)
+            request.session["uploaded_files"] = uploaded_files
+
+        upload_base = Path(settings.UPLOAD_FOLDER).resolve()
+        upload_path = (upload_base / filename).resolve()
+
+        # Ensure we never delete files outside the configured upload folder.
+        try:
+            inside = upload_path.is_relative_to(upload_base)
+        except AttributeError:
+            # Fallback for older Python: compare common prefixes
+            inside = str(upload_path).startswith(str(upload_base) + os.sep) or str(upload_path) == str(upload_base)
+
+        if inside and upload_path.exists():
+            upload_path.unlink()
+        else:
+            logging.getLogger(__name__).warning(
+                "Refused to delete upload outside upload folder: %s", upload_path
+            )
+    except Exception as e:
+        logging.getLogger(__name__).exception("Failed to delete uploaded file %s: %s", filename, e)
+
     messages.success(request, f"Deleted '{filename}' successfully.")
     return JsonResponse({"ok": True, "message": f"Deleted '{filename}' successfully."})
-
 
 @require_GET
 def upload_notebook(request):
@@ -448,7 +549,6 @@ def get_summary(request):
 
 
 @require_POST
-@csrf_exempt
 def init_upload(request):
     job_id = uuid.uuid4().hex
     cache.set(f"job:{job_id}", {"phase": "Uploading", "pct": 1}, timeout=3600)
@@ -457,9 +557,12 @@ def init_upload(request):
 
 
 @require_POST
-@csrf_exempt  # remove if you include CSRF token in your fetch upload
 def upload(request):
-    job_id = request.headers.get("X-Job-Id") or request.session.get("job_id") or uuid.uuid4().hex
+    job_id = (
+        request.headers.get("X-Job-Id")
+        or request.session.get("job_id")
+        or uuid.uuid4().hex
+    )
     request.session["job_id"] = job_id
     cache.set(f"job:{job_id}", {"phase": "Uploading", "pct": 1}, timeout=3600)
 
@@ -505,11 +608,17 @@ def upload(request):
     request.session["summary_text"] = None
     request.session["summary_generated"] = False
 
-    t = Thread(target=_process_job, args=(job_id, text, persist_dir, filename, 10, 100), daemon=True)
+    t = Thread(
+        target=_process_job,
+        args=(job_id, text, persist_dir, filename, 10, 100),
+        daemon=True,
+    )
     t.start()
 
     if is_xhr:
-        return JsonResponse({"ok": True, "job_id": job_id, "filename": filename}, status=200)
+        return JsonResponse(
+            {"ok": True, "job_id": job_id, "filename": filename}, status=200
+        )
     return redirect("upload_notebook")
 
 
@@ -517,16 +626,18 @@ def upload(request):
 def get_progress(request, job_id):
     st = cache.get(f"job:{job_id}")
     if not st:
-        return JsonResponse({"ok": False, "missing": True, "phase": "missing", "pct": 0}, status=404)
+        return JsonResponse(
+            {"ok": False, "missing": True, "phase": "missing", "pct": 0}, status=404
+        )
     resp = JsonResponse({"ok": True, **st})
     resp["Cache-Control"] = "no-store"
     return resp
 
 
 @require_POST
-@csrf_exempt
 def ask(request):
     import json
+
     payload = {}
     if request.body:
         try:
@@ -545,10 +656,18 @@ def ask(request):
     persist_dir = info.get("persist_dir") if info else None
 
     if not persist_dir or not os.path.isdir(persist_dir):
-        return JsonResponse({"ok": False, "error": "Please select a Notebook before asking a Question."}, status=400)
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "Please select a Notebook before asking a Question.",
+            },
+            status=400,
+        )
 
     client = get_openai_client()
-    embeddings = OpenAIEmbeddings(model="text-embedding-3-large", openai_api_key=client.api_key)
+    embeddings = OpenAIEmbeddings(
+        model="text-embedding-3-large", openai_api_key=client.api_key
+    )
     vectordb = Chroma(embedding_function=embeddings, persist_directory=persist_dir)
 
     retrieved = vectordb.similarity_search(question, k=10)
@@ -586,11 +705,11 @@ class Timer:
 
 
 @require_POST
-@csrf_exempt
 def generate_quiz(request):
     t_total = Timer("generate_quiz TOTAL")
 
     import json
+
     payload = {}
     if request.body:
         try:
@@ -610,11 +729,16 @@ def generate_quiz(request):
     t_session.done()
 
     if not persist_dir or not os.path.isdir(persist_dir):
-        return JsonResponse({"ok": False, "error": "Please select a Notebook before generating Quiz."}, status=400)
+        return JsonResponse(
+            {"ok": False, "error": "Please select a Notebook before generating Quiz."},
+            status=400,
+        )
 
     t_vectordb = Timer("load vector DB")
     client = get_openai_client()
-    embeddings = OpenAIEmbeddings(model="text-embedding-3-large", openai_api_key=client.api_key)
+    embeddings = OpenAIEmbeddings(
+        model="text-embedding-3-large", openai_api_key=client.api_key
+    )
     vectordb = Chroma(embedding_function=embeddings, persist_directory=persist_dir)
     t_vectordb.done()
 
@@ -647,6 +771,7 @@ def generate_quiz(request):
         D)  <answer choice D>
         E)  <answer choice E>
         Correct Answer: <letter only>
+        Explanation: <one sentence explaining why the correct answer is right>
 
         Question 2: <question>
          ..."""
@@ -664,39 +789,55 @@ def generate_quiz(request):
     t_parse = Timer("parse LLM output")
     text = resp.choices[0].message.content.strip()
     print("RAW LLM OUTPUT:\n", text)
-    blocks = re.split(r'\n(?=Question\s*\d+)', text.strip())
+    blocks = re.split(r"\n(?=Question\s*\d+)", text.strip())
     quiz = []
     for b in blocks:
-        lines = b.splitlines()
+        lines = [l for l in b.splitlines() if l.strip()]
         if len(lines) >= 7 and lines[0].lower().startswith("question"):
             q = lines[0].strip()
             choices = lines[1:6]
             correct_letter = lines[6].split(":")[-1].strip()
 
+            explanation = ""
+            if len(lines) >= 8 and lines[7].lower().startswith("explanation"):
+                explanation = lines[7].split(":", 1)[-1].strip()
+
             # Mapping letter to the actual correct answer text
-            letter_map = {chr(65+i): choice for i, choice in enumerate(choices)}
+            letter_map = {chr(65 + i): choice for i, choice in enumerate(choices)}
             correct_text = letter_map.get(correct_letter, choices[0])
-            
+
             # Shuffle the choices
             random.shuffle(choices)
-            
-            # Find where the correct answer landed after shuffle
-            new_correct_letter = chr(65 + choices.index(correct_text))  # A, B, C, D, or E
-            
-            # Strip old letter prefixes and re-label A-E
-            relabeled = [f"{chr(65+i)}) {c.split(')', 1)[-1].strip()}" for i, c in enumerate(choices)]
 
-            quiz.append({"question": q, "choices": relabeled, "correct": new_correct_letter})
+            # Find where the correct answer landed after shuffle
+            new_correct_letter = chr(
+                65 + choices.index(correct_text)
+            )  # A, B, C, D, or E
+
+            # Strip old letter prefixes and re-label A-E
+            relabeled = [
+                f"{chr(65+i)}) {c.split(')', 1)[-1].strip()}"
+                for i, c in enumerate(choices)
+            ]
+
+            quiz.append(
+                {"question": q, "choices": relabeled, "correct": new_correct_letter, "explanation": explanation}
+            )
     t_parse.done(f"(parsed={len(quiz)})")
 
     t_total.done()
+    # Do not expose explanations to anonymous users — strip them server-side
+    if not request.user.is_authenticated:
+        for q in quiz:
+            q["explanation"] = ""
+
     return JsonResponse({"ok": True, "quiz": quiz})
 
 
 @require_POST
-@csrf_exempt
 def save_result(request):
     import json
+
     payload = {}
     if request.body:
         try:
@@ -715,22 +856,76 @@ def save_result(request):
     results = request.session.get("results", [])
     correct_i = int(correct)
     total_i = int(total)
-    percent_i = int(percent) if percent is not None else round((correct_i / total_i) * 100)
+    percent_i = (
+        int(percent) if percent is not None else round((correct_i / total_i) * 100)
+    )
 
-    results.insert(0, {
-        "filename": filename,
-        "correct": correct_i,
-        "total": total_i,
-        "percent": percent_i,
-        "test_datetime": datetime.now().strftime("%Y-%m-%d %I:%M %p")
-    })
+    results.insert(
+        0,
+        {
+            "filename": filename,
+            "correct": correct_i,
+            "total": total_i,
+            "percent": percent_i,
+            # store both a human-friendly server-local string and an ISO UTC timestamp
+            "test_datetime": datetime.now().strftime("%Y-%m-%d %I:%M %p"),
+            "test_ts": datetime.utcnow().isoformat() + "Z",
+        },
+    )
     request.session["results"] = results
     return JsonResponse({"ok": True})
 
 
 @require_GET
 def results(request):
-    return render(request, "results.html", {"results": request.session.get("results", [])})
+    return render(
+        request, "results.html", {"results": request.session.get("results", [])}
+    )
+
+
+@require_POST
+def password_reset_request(request):
+    form = PasswordResetForm(request.POST)
+    if form.is_valid():
+        form.save(
+            request=request,
+            use_https=request.is_secure(),
+            email_template_name="registration/password_reset_email.txt",
+            html_email_template_name="registration/password_reset_email.html",
+            subject_template_name="registration/password_reset_subject.txt",
+            from_email=settings.DEFAULT_FROM_EMAIL,
+        )
+    # Always return ok to prevent email enumeration
+    return JsonResponse({"status": "ok"})
+
+
+def password_reset_confirm(request, uidb64, token):
+    try:
+        uid = force_str(urlsafe_base64_decode(uidb64))
+        user = User.objects.get(pk=uid)
+    except (User.DoesNotExist, ValueError, TypeError):
+        user = None
+
+    valid = user is not None and default_token_generator.check_token(user, token)
+
+    if request.method == "POST" and valid:
+        form = SetPasswordForm(user, request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect("password_reset_complete")
+        return render(request, "registration/password_reset_confirm.html", {"form": form, "valid": True})
+
+    return render(request, "registration/password_reset_confirm.html", {
+        "form": SetPasswordForm(user) if valid else None,
+        "valid": valid,
+        "uidb64": uidb64,
+        "token": token,
+    })
+
+
+def password_reset_complete(request):
+    return render(request, "registration/password_reset_complete.html")
+
 
 
 @require_POST
@@ -754,20 +949,110 @@ def send_feedback(request):
             fail_silently=False,
         )
 
-        return JsonResponse({"status": "success", "message": "Thank you! Your feedback has been sent."})
+        return JsonResponse(
+            {"status": "success", "message": "Thank you! Your feedback has been sent."}
+        )
     except Exception as e:
         # log the full exception so we can inspect it in the console/logs
         import logging
+
         logging.getLogger(__name__).exception("feedback send failed")
         # tell the client what went wrong (remove before production)
-        return JsonResponse({"status": "error", "message": f"Unable to send feedback: {e}"})
+        return JsonResponse(
+            {"status": "error", "message": f"Unable to send feedback: {e}"}
+        )
 
-#Olagoke testing if victor sees my changes
-def test_view(request):
-    return JsonResponse({"ok": True, "message": "If you see this, the test view is working!"})
 
-#victor testing
 
-#Additional test view to check if victor sees my changes
-def test_view_2(request):
-    return JsonResponse({"ok": True, "message": "This is the second test view. If you see this, it means the new changes are live!"})
+# ---------- Google OAuth2 ----------
+
+GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
+
+
+@never_cache
+@require_GET
+def google_login(request):
+    state = secrets.token_urlsafe(16)
+    request.session["google_oauth_state"] = state
+
+    log.info("Google OAuth redirect_uri: %s", settings.GOOGLE_REDIRECT_URI)
+
+    params = {
+        "client_id": settings.GOOGLE_CLIENT_ID,
+        "redirect_uri": settings.GOOGLE_REDIRECT_URI,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "state": state,
+        "access_type": "online",
+    }
+    return redirect(f"{GOOGLE_AUTH_URL}?{urllib.parse.urlencode(params)}")
+
+
+@never_cache
+@require_GET
+def google_callback(request):
+    state = request.GET.get("state")
+    stored_state = request.session.pop("google_oauth_state", None)
+
+    if not state or state != stored_state:
+        messages.error(request, "Authentication failed. Please try again.", extra_tags="auth-login")
+        return redirect("/")
+
+    code = request.GET.get("code")
+    if not code:
+        messages.error(request, "Google sign-in was cancelled.", extra_tags="auth-login")
+        return redirect("/")
+
+    # Exchange authorisation code for tokens
+    token_resp = http_requests.post(GOOGLE_TOKEN_URL, data={
+        "code": code,
+        "client_id": settings.GOOGLE_CLIENT_ID,
+        "client_secret": settings.GOOGLE_CLIENT_SECRET,
+        "redirect_uri": settings.GOOGLE_REDIRECT_URI,
+        "grant_type": "authorization_code",
+    }, timeout=10)
+
+    if not token_resp.ok:
+        messages.error(request, "Could not complete Google sign-in. Please try again.", extra_tags="auth-login")
+        return redirect("/")
+
+    access_token = token_resp.json().get("access_token")
+
+    # Fetch user profile from Google
+    userinfo_resp = http_requests.get(
+        GOOGLE_USERINFO_URL,
+        headers={"Authorization": f"Bearer {access_token}"},
+        timeout=10,
+    )
+
+    if not userinfo_resp.ok:
+        messages.error(request, "Could not retrieve profile from Google.", extra_tags="auth-login")
+        return redirect("/")
+
+    info = userinfo_resp.json()
+    email = (info.get("email") or "").strip().lower()
+
+    if not email:
+        messages.error(request, "Google did not return an email address.", extra_tags="auth-login")
+        return redirect("/")
+
+    # Get existing user or create a new one
+    user = User.objects.filter(email__iexact=email).first()
+    if not user:
+        first_name = info.get("given_name", "")
+        last_name = info.get("family_name", "")
+        user = User(
+            username=email,
+            email=email,
+            first_name=first_name,
+            last_name=last_name,
+        )
+        user.set_unusable_password()
+        user.save()
+
+    login(request, user)
+    return redirect("/")
+
+

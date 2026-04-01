@@ -6,3 +6,13 @@ __pycache__/
 *.pyc
 .DS_Store 
 venv_study_assist
+staticfiles/
+
+# ChromaDB vector store
+chroma_db/
+**/chroma_db/
+
+# User uploaded files
+media/
+uploads/
+**/uploads/

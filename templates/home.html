@@ -150,9 +150,14 @@
 
         <div class="sa-spacer">
             <ul class="sa-nav-links">
-                <li class="{% if current_url == 'home' or current_url == 'root' %}is-active{% endif %}"><a class="{% if current_url == 'home' or current_url == 'root' %}is-active{% endif %}" href="{% url 'home' %}">{% trans "Home" %}</a></li>
-                <li class="{% if current_url == 'upload_notebook' %}is-active{% endif %}"><a class="{% if current_url == 'upload_notebook' %}is-active{% endif %}" href="{% url 'upload_notebook' %}">{% trans "Upload Notebook" %}</a></li>
-                <li class="{% if current_url == 'results' %}is-active{% endif %}"><a class="{% if current_url == 'results' %}is-active{% endif %}" href="{% url 'results' %}">{% trans "Results" %}</a></li>
+                <li class="{% if current_url == 'home' or current_url == 'root' %}is-active{% endif %}"><a
+                        class="{% if current_url == 'home' or current_url == 'root' %}is-active{% endif %}"
+                        href="{% url 'home' %}">{% trans "Home" %}</a></li>
+                <li class="{% if current_url == 'upload_notebook' %}is-active{% endif %}"><a
+                        class="{% if current_url == 'upload_notebook' %}is-active{% endif %}"
+                        href="{% url 'upload_notebook' %}">{% trans "Upload Notebook" %}</a></li>
+                <li class="{% if current_url == 'results' %}is-active{% endif %}"><a
+                        class="{% if current_url == 'results' %}is-active{% endif %}" href="{% url 'results' %}">{% trans "Results" %}</a></li>
                 <li><a href="#" class="sa-open-feedback">{% trans "Feedback" %}</a></li>
             </ul>
 
@@ -189,9 +194,14 @@
                 </svg>
             </li>
             <li class="sa-sidebar-spacer" aria-hidden="true"></li>
-            <li class="{% if current_url == 'home' or current_url == 'root' %}is-active{% endif %}"><a class="{% if current_url == 'home' or current_url == 'root' %}is-active{% endif %}" href="{% url 'home' %}">{% trans "Home" %}</a></li>
-            <li class="{% if current_url == 'upload_notebook' %}is-active{% endif %}"><a class="{% if current_url == 'upload_notebook' %}is-active{% endif %}" href="{% url 'upload_notebook' %}">{% trans "Upload Notebook" %}</a></li>
-            <li class="{% if current_url == 'results' %}is-active{% endif %}"><a class="{% if current_url == 'results' %}is-active{% endif %}" href="{% url 'results' %}">{% trans "Results" %}</a></li>
+            <li class="{% if current_url == 'home' or current_url == 'root' %}is-active{% endif %}"><a
+                    class="{% if current_url == 'home' or current_url == 'root' %}is-active{% endif %}"
+                    href="{% url 'home' %}">{% trans "Home" %}</a></li>
+            <li class="{% if current_url == 'upload_notebook' %}is-active{% endif %}"><a
+                    class="{% if current_url == 'upload_notebook' %}is-active{% endif %}"
+                    href="{% url 'upload_notebook' %}">{% trans "Upload Notebook" %}</a></li>
+            <li class="{% if current_url == 'results' %}is-active{% endif %}"><a
+                    class="{% if current_url == 'results' %}is-active{% endif %}" href="{% url 'results' %}">{% trans "Results" %}</a></li>
             <li><a href="#" class="sa-open-feedback">{% trans "Feedback" %}</a></li>
 
             {% include 'includes/sidebar_signin.html' %}
@@ -240,8 +250,7 @@
     <footer>
         <div class="sa-footer-content">
             <p>&copy;
-                <script>document.write(new Date().getFullYear());</script> StudyAssists | {% trans "All rights reserved" %} | <a
-                    href="{% url 'privacy_policy' %}">{% trans "Privacy Policy" %}</a>
+                <script>document.write(new Date().getFullYear());</script> StudyAssists | {% trans "All rights reserved" %} | <a href="{% url 'privacy_policy' %}">{% trans "Privacy Policy" %}</a>
             </p>
         </div>
     </footer>
@@ -252,6 +261,9 @@
     {% include 'includes/feedback_modal.html' %}
 
     {% include 'includes/auth_modals.html' %}
+
+    <!-- Cookie consent dialog -->
+    {% include 'includes/cookie_consent.html' %}
 
 </body>
 

@@ -16,7 +16,7 @@
         <p class="sa-login-subtitle">sign in to continue</p>
 
         <!-- Auth Buttons -->
-        <button class="sa-auth-btn sa-auth-google">
+        <a href="{% url 'google_login' %}" class="sa-auth-btn sa-auth-google">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path
                     d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -32,8 +32,9 @@
                     fill="#EA4335" />
             </svg>
             Login with Google
-        </button>
+        </a>
 
+        <!-- Login with Apple (hidden until implemented)
         <button class="sa-auth-btn sa-auth-apple">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
                 <path
@@ -41,6 +42,7 @@
             </svg>
             Login with Apple
         </button>
+        -->
 
         <!-- Divider -->
         <div class="sa-login-divider">
@@ -105,10 +107,13 @@
             <input type="hidden" name="next" value="{{ request.get_full_path }}">
             <input type="email" name="email" class="sa-email-input" placeholder="your.email@example.com" required>
             <input type="password" name="password" class="sa-email-input" placeholder="Password" required>
-            <label class="sa-remember-me">
-                <input type="checkbox" name="remember" class="sa-remember-checkbox">
-                <span>Remember me</span>
-            </label>
+            <div class="sa-remember-row">
+                <label class="sa-remember-me">
+                    <input type="checkbox" name="remember" class="sa-remember-checkbox">
+                    <span>Remember me</span>
+                </label>
+                <a href="#" class="sa-forgot-link">Forgot password?</a>
+            </div>
             <button type="submit" class="sa-auth-btn sa-auth-email">Log in</button>
         </form>
         <p class="sa-login-terms">Or <a href="#" class="sa-email-switch-to-signup">create an account</a></p>
@@ -160,6 +165,56 @@
         </form>
         <p class="sa-login-terms">Already have an account? <a href="#" class="sa-email-switch-to-login">Log in</a></p>
         <button class="sa-login-close sa-email-signup-close" aria-label="Close signup modal">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+        </button>
+    </div>
+</div>
+
+<!-- FORGOT PASSWORD MODAL -->
+<div class="sa-login-modal" id="forgotPasswordModal" aria-hidden="true">
+    <div class="sa-login-modal-content">
+        <button type="button" class="sa-login-back sa-forgot-back" aria-label="Back">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
+                stroke="currentColor" stroke-width="2">
+                <path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+        </button>
+        <h2>Reset password</h2>
+        <p class="sa-login-subtitle">Enter your email and we'll send you a reset link.</p>
+        <div class="flash-container" id="forgotPasswordFlash" aria-live="polite"></div>
+        <form id="forgotPasswordForm" class="sa-email-form">
+            {% csrf_token %}
+            <input type="email" name="email" class="sa-email-input" placeholder="your.email@example.com" required>
+            <button type="submit" class="sa-auth-btn sa-auth-email">Send reset link</button>
+        </form>
+        <button class="sa-login-close sa-forgot-close" aria-label="Close">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+        </button>
+    </div>
+</div>
+
+<!-- FORGOT PASSWORD SENT MODAL -->
+<div class="sa-login-modal" id="forgotPasswordSentModal" aria-hidden="true">
+    <div class="sa-login-modal-content" style="text-align: center;">
+        <div class="sa-forgot-sent-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
+                stroke="#3268d6" stroke-width="1.5">
+                <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path>
+            </svg>
+        </div>
+        <h2>Check your email</h2>
+        <p class="sa-login-subtitle">We've sent a password reset link to your email. The link expires in 24 hours.</p>
+        <button type="button" class="sa-auth-btn sa-auth-email sa-forgot-sent-done">Done</button>
+        <button class="sa-login-close sa-forgot-sent-close" aria-label="Close">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18"></line>

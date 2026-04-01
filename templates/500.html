@@ -1,0 +1,118 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>500 – Server Error | StudyAssists</title>
+    <link rel="shortcut icon" type="image/x-icon" href="{% static 'img/favicon.svg' %}">
+    <link rel="stylesheet" href="{% static 'css/general.css' %}">
+    <link rel="stylesheet" href="{% static 'css/base.css' %}">
+    <style>
+        .sa-navbar,
+        footer {
+            background: linear-gradient(135deg, #1f3c88, #3268d6);
+        }
+
+        .brand-text,
+        footer {
+            color: white;
+        }
+
+        .sa-error-page {
+            text-align: center;
+            padding: 60px 20px;
+            max-width: 560px;
+            width: 100%;
+        }
+
+        .sa-error-code {
+            font-size: 7rem;
+            font-weight: 800;
+            line-height: 1;
+            background: linear-gradient(135deg, #1f3c88, #3268d6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+
+        .sa-error-title {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #1f3057;
+            margin-bottom: 14px;
+        }
+
+        .sa-error-description {
+            font-size: 1rem;
+            color: #666;
+            margin-bottom: 36px;
+            line-height: 1.7;
+        }
+
+        .sa-error-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .sa-btn-secondary {
+            padding: 14px 28px;
+            font-size: 1rem;
+            border: 2px solid #3268d6;
+            border-radius: 8px;
+            background: transparent;
+            color: #3268d6;
+            font-weight: bold;
+            cursor: pointer;
+            display: inline-block;
+            text-align: center;
+            text-decoration: none;
+            transition: background 0.2s ease, color 0.2s ease;
+        }
+
+        .sa-btn-secondary:hover {
+            background: #3268d6;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav class="sa-navbar">
+            <div class="sa-logo">
+                <a class="sa-brand" href="/" aria-label="Study Assist home">
+                    <svg class="brand-icon" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+                        <path fill="#22c1ff" d="M2 7l10-5 10 5v2l-10 5L2 9z"></path>
+                        <path fill="#0ea5a4" d="M2 12l10-5 10 5v2l-10 5L2 14z" opacity="0.15"></path>
+                    </svg>
+                    <span class="brand-text">StudyAssists</span>
+                </a>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <div class="sa-error-page">
+            <div class="sa-error-code">500</div>
+            <h1 class="sa-error-title">Something Went Wrong</h1>
+            <p class="sa-error-description">
+                An unexpected error occurred on our end.<br>
+                Our team has been notified. Please try again in a moment.
+            </p>
+            <div class="sa-error-actions">
+                <a href="/" class="sa-btn-primary">Go to Home</a>
+                <a href="javascript:location.reload()" class="sa-btn-secondary">Try Again</a>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="sa-footer-content">
+            <p>&copy; <script>document.write(new Date().getFullYear());</script> StudyAssists | All rights reserved</p>
+        </div>
+    </footer>
+</body>
+</html>

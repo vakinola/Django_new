@@ -11,10 +11,26 @@
     <link rel="shortcut icon" type="image/x-icon" href="{% static 'img/favicon.svg' %}">
 
 
+    <link rel="stylesheet" href="{% static 'css/general.css' %}">
     <link rel="stylesheet" href="{% static 'css/base.css' %}">
 
     <script src="{% static 'js/sidebar.js' %}" defer></script>
     <script src="{% static 'js/modal.js' %}" defer></script>
+
+    <script>
+        // Sync all CSRF tokens from the cookie on every page load.
+        // This prevents 403 errors when the browser serves a cached page
+        // after a login (which rotates the CSRF token).
+        (function () {
+            const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+            const token = match ? decodeURIComponent(match[1]) : null;
+            if (!token) return;
+            const meta = document.querySelector('meta[name="csrf-token"]');
+            if (meta) meta.setAttribute('content', token);
+            document.querySelectorAll('input[name="csrfmiddlewaretoken"]')
+                .forEach(function (el) { el.value = token; });
+        })();
+    </script>
 
     <script type="application/ld+json">
   {
@@ -59,9 +75,14 @@
 
             <div class="sa-spacer">
                 <ul class="sa-nav-links">
-                    <li class="{% if current_url == 'home' or current_url == 'root' %}is-active{% endif %}"><a class="{% if current_url == 'home' or current_url == 'root' %}is-active{% endif %}" href="{% url 'home' %}">{% trans "Home" %}</a></li>
-                    <li class="{% if current_url == 'upload_notebook' %}is-active{% endif %}"><a class="{% if current_url == 'upload_notebook' %}is-active{% endif %}" href="{% url 'upload_notebook' %}">{% trans "Upload Notebook" %}</a></li>
-                    <li class="{% if current_url == 'results' %}is-active{% endif %}"><a class="{% if current_url == 'results' %}is-active{% endif %}" href="{% url 'results' %}">{% trans "Results" %}</a></li>
+                    <li class="{% if current_url == 'home' or current_url == 'root' %}is-active{% endif %}"><a
+                            class="{% if current_url == 'home' or current_url == 'root' %}is-active{% endif %}"
+                            href="{% url 'home' %}">{% trans "Home" %}</a></li>
+                    <li class="{% if current_url == 'upload_notebook' %}is-active{% endif %}"><a
+                            class="{% if current_url == 'upload_notebook' %}is-active{% endif %}"
+                            href="{% url 'upload_notebook' %}">{% trans "Upload Notebook" %}</a></li>
+                    <li class="{% if current_url == 'results' %}is-active{% endif %}"><a
+                            class="{% if current_url == 'results' %}is-active{% endif %}" href="{% url 'results' %}">{% trans "Results" %}</a></li>
                     <li><a href="#" class="sa-open-feedback">{% trans "Feedback" %}</a></li>
                 </ul>
 
@@ -97,9 +118,14 @@
                     </svg>
                 </li>
                 <li class="sa-sidebar-spacer" aria-hidden="true"></li>
-                <li class="{% if current_url == 'home' or current_url == 'root' %}is-active{% endif %}"><a class="{% if current_url == 'home' or current_url == 'root' %}is-active{% endif %}" href="{% url 'home' %}">{% trans "Home" %}</a></li>
-                <li class="{% if current_url == 'upload_notebook' %}is-active{% endif %}"><a class="{% if current_url == 'upload_notebook' %}is-active{% endif %}" href="{% url 'upload_notebook' %}">{% trans "Upload Notebook" %}</a></li>
-                <li class="{% if current_url == 'results' %}is-active{% endif %}"><a class="{% if current_url == 'results' %}is-active{% endif %}" href="{% url 'results' %}">{% trans "Results" %}</a></li>
+                <li class="{% if current_url == 'home' or current_url == 'root' %}is-active{% endif %}"><a
+                        class="{% if current_url == 'home' or current_url == 'root' %}is-active{% endif %}"
+                        href="{% url 'home' %}">{% trans "Home" %}</a></li>
+                <li class="{% if current_url == 'upload_notebook' %}is-active{% endif %}"><a
+                        class="{% if current_url == 'upload_notebook' %}is-active{% endif %}"
+                        href="{% url 'upload_notebook' %}">{% trans "Upload Notebook" %}</a></li>
+                <li class="{% if current_url == 'results' %}is-active{% endif %}"><a
+                        class="{% if current_url == 'results' %}is-active{% endif %}" href="{% url 'results' %}">{% trans "Results" %}</a></li>
                 <li><a href="#" class="sa-open-feedback">{% trans "Feedback" %}</a></li>
 
                 {% include 'includes/sidebar_signin.html' %}
@@ -118,8 +144,7 @@
     <footer>
         <div class="sa-footer-content">
             <p>&copy;
-                <script>document.write(new Date().getFullYear());</script> StudyAssists | {% trans "All rights reserved" %} | <a
-                    href="{% url 'privacy_policy' %}">{% trans "Privacy Policy" %}</a>
+                <script>document.write(new Date().getFullYear());</script> StudyAssists | {% trans "All rights reserved" %} | <a href="{% url 'privacy_policy' %}">{% trans "Privacy Policy" %}</a>
             </p>
         </div>
     </footer>
@@ -136,6 +161,10 @@
     {% include 'includes/cookie_consent.html' %}
 
     {% block extra_js %}
+    <script>
+        // Expose a boolean to client scripts indicating whether the user is authenticated.
+        window.__userAuthenticated = {% if request.user.is_authenticated %}true{% else %}false{% endif %};
+    </script>
     <script src="{% static 'js/main.js' %}"></script>
     {% endblock %}
 

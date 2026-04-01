@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}403 – Forbidden | StudyAssists{% endblock %}
+
+{% block extra_css %}
+<style>
+    .sa-error-page {
+        text-align: center;
+        padding: 60px 20px;
+        max-width: 560px;
+        width: 100%;
+    }
+
+    .sa-error-code {
+        font-size: 7rem;
+        font-weight: 800;
+        line-height: 1;
+        background: linear-gradient(135deg, #1f3c88, #3268d6);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 8px;
+    }
+
+    .sa-error-title {
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: #1f3057;
+        margin-bottom: 14px;
+    }
+
+    .sa-error-description {
+        font-size: 1rem;
+        color: #666;
+        margin-bottom: 36px;
+        line-height: 1.7;
+    }
+
+    .sa-error-actions {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .sa-btn-secondary {
+        padding: 14px 28px;
+        font-size: 1rem;
+        border: 2px solid #3268d6;
+        border-radius: 8px;
+        background: transparent;
+        color: #3268d6;
+        font-weight: bold;
+        cursor: pointer;
+        display: inline-block;
+        text-align: center;
+        text-decoration: none;
+        transition: background 0.2s ease, color 0.2s ease;
+    }
+
+    .sa-btn-secondary:hover {
+        background: #3268d6;
+        color: #fff;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sa-error-page">
+    <div class="sa-error-code">403</div>
+    <h1 class="sa-error-title">Access Forbidden</h1>
+    <p class="sa-error-description">
+        You don't have permission to access this page.<br>
+        If you believe this is a mistake, try signing in or contact support.
+    </p>
+    <div class="sa-error-actions">
+        <a href="{% url 'home' %}" class="sa-btn-primary">Go to Home</a>
+        {% if not request.user.is_authenticated %}
+        <a href="#" class="sa-btn-secondary sa-open-login">Sign In</a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

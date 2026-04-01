@@ -122,6 +122,68 @@
                 {% endif %}
             </div>
 
+            <!-- Mobile-only: tap-to-upload (NOT collapsible, auto-uploads on file select) -->
+            <div class="mobile-upload-section" id="mobileUploadSection">
+                <form id="mobileUploadForm" method="post" action="{% url 'upload' %}" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <input type="file" id="mobileFileInput" name="file" accept=".pdf,.docx,.txt,.pptx" hidden />
+
+                    <div class="mobile-upload-tap-area" id="mobileUploadBox" role="button" tabindex="0"
+                        aria-label="Tap to upload a file">
+                        <i class="fa fa-cloud-upload mobile-upload-big-icon" aria-hidden="true"></i>
+                        <div class="mobile-upload-text">
+                            <span class="mobile-upload-cta">Tap to Upload Your File</span>
+                            <span class="mobile-upload-formats">Supported: .pdf, .docx, .txt, .pptx</span>
+                        </div>
+                    </div>
+
+                    <p id="mobileSelectedFileName" class="mobile-selected-file-name"></p>
+
+                    <div id="mobileBuildProgress" style="display:none;">
+                        <div class="progress" style="height:10px;">
+                            <div id="mobileBuildBar" class="progress-bar" role="progressbar" style="width:0%;"></div>
+                        </div>
+                        <small id="mobileBuildLabel" class="text-muted d-block mt-1">Starting…</small>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Mobile-only: "Uploaded Files" collapsible (mirrors desktop sidebar list) -->
+            <section class="mobile-upload-section mobile-uploaded-files-section" id="mobileUploadedSection">
+                <h2>
+                    <button id="mobileUploadedToggle" class="mobile-upload-toggle-btn" aria-expanded="false"
+                        aria-controls="mobileUploadedPanel">
+                        <span class="mobile-upload-toggle-label">
+                            <i class="fa fa-folder-open" aria-hidden="true"></i>
+                            Uploaded Files
+                        </span>
+                        <i class="fa fa-chevron-down mobile-collapse-icon" aria-hidden="true"></i>
+                    </button>
+                </h2>
+                <div id="mobileUploadedPanel" class="mobile-upload-panel" aria-hidden="true">
+                    {% if request.session.docs %}
+                    <ul id="mobileFileList" class="doc-list mobile-doc-list">
+                        {% for fn, info in request.session.docs.items %}
+                        <li class="doc-item">
+                            <label class="doc-row">
+                                <input type="radio" class="doc-select" name="mobile_filename" value="{{ fn }}">
+                                <div class="doc-main">
+                                    <div class="doc-name">{{ fn }}</div>
+                                </div>
+                            </label>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    <button id="mobileDeleteDocBtn" type="button"
+                        class="btn btn-outline-secondary w-100 deletebtn mt-2">
+                        Delete Selected
+                    </button>
+                    {% else %}
+                    <p class="mobile-no-files-msg">No files uploaded yet.</p>
+                    {% endif %}
+                </div>
+            </section>
+
             {% if summary %}
             <section class="features" id="summarySection">
                 <h2 class="mt-4 fw-semibold">Summary</h2>
@@ -148,7 +210,8 @@
 
                         {% if answer %}
                         <div id="answerBox" class="mt-3">
-                            <div class="border rounded p-3 bg-light monospace" id="answerText" style="white-space: pre-wrap;">
+                            <div class="border rounded p-3 bg-light monospace" id="answerText"
+                                style="white-space: pre-wrap;">
                                 {{ answer }}
                             </div>
                         </div>

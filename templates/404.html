@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}404 – Page Not Found | StudyAssists{% endblock %}
+
+{% block extra_css %}
+<style>
+    .sa-error-page {
+        text-align: center;
+        padding: 60px 20px;
+        max-width: 560px;
+        width: 100%;
+    }
+
+    .sa-error-code {
+        font-size: 7rem;
+        font-weight: 800;
+        line-height: 1;
+        background: linear-gradient(135deg, #1f3c88, #3268d6);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 8px;
+    }
+
+    .sa-error-title {
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: #1f3057;
+        margin-bottom: 14px;
+    }
+
+    .sa-error-description {
+        font-size: 1rem;
+        color: #666;
+        margin-bottom: 36px;
+        line-height: 1.7;
+    }
+
+    .sa-error-actions {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .sa-btn-secondary {
+        padding: 14px 28px;
+        font-size: 1rem;
+        border: 2px solid #3268d6;
+        border-radius: 8px;
+        background: transparent;
+        color: #3268d6;
+        font-weight: bold;
+        cursor: pointer;
+        display: inline-block;
+        text-align: center;
+        text-decoration: none;
+        transition: background 0.2s ease, color 0.2s ease;
+    }
+
+    .sa-btn-secondary:hover {
+        background: #3268d6;
+        color: #fff;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sa-error-page">
+    <div class="sa-error-code">404</div>
+    <h1 class="sa-error-title">Page Not Found</h1>
+    <p class="sa-error-description">
+        The page you're looking for doesn't exist or may have been moved.<br>
+        Double-check the URL, or head back to a page you know.
+    </p>
+    <div class="sa-error-actions">
+        <a href="{% url 'home' %}" class="sa-btn-primary">Go to Home</a>
+        <a href="{% url 'upload_notebook' %}" class="sa-btn-secondary">Upload Notebook</a>
+    </div>
+</div>
+{% endblock %}

@@ -8,17 +8,14 @@
             We use cookies to enhance your experience. By continuing to browse, you agree to our use of cookies.
         </p>
         <div class="cookie-actions">
-            <button class="cookie-btn cookie-decline"
-                onclick="document.getElementById('cookieConsent').setAttribute('aria-hidden', 'true'); document.getElementById('cookieConsent').classList.remove('active'); localStorage.setItem('cookieConsent', 'declined');">
+            <button class="cookie-btn cookie-decline" onclick="dismissCookieBanner('declined');">
                 Decline
             </button>
-            <button class="cookie-btn cookie-accept"
-                onclick="document.getElementById('cookieConsent').setAttribute('aria-hidden', 'true'); document.getElementById('cookieConsent').classList.remove('active'); localStorage.setItem('cookieConsent', 'accepted');">
+            <button class="cookie-btn cookie-accept" onclick="dismissCookieBanner('accepted');">
                 Accept All
             </button>
 
-            <button class="cookie-close" aria-label="Close cookie consent"
-                onclick="document.getElementById('cookieConsent').setAttribute('aria-hidden', 'true'); document.getElementById('cookieConsent').classList.remove('active');">
+            <button class="cookie-close" aria-label="Close cookie consent" onclick="dismissCookieBanner(null);">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
                     <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -29,12 +26,30 @@
 </div>
 
 <script>
-    // Show cookie consent on first visit
+    function safeLocalStorage(action, key, value) {
+        try {
+            if (action === 'get') return localStorage.getItem(key);
+            if (action === 'set') localStorage.setItem(key, value);
+        } catch (e) {
+            // Safari private browsing blocks localStorage — fail silently
+            return null;
+        }
+    }
+
+    function dismissCookieBanner(choice) {
+        var dialog = document.getElementById('cookieConsent');
+        if (dialog) {
+            dialog.setAttribute('aria-hidden', 'true');
+            dialog.classList.remove('active');
+        }
+        if (choice) safeLocalStorage('set', 'cookieConsent', choice);
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
-        const consent = localStorage.getItem('cookieConsent');
-        const cookieDialog = document.getElementById('cookieConsent');
+        var consent = safeLocalStorage('get', 'cookieConsent');
+        var cookieDialog = document.getElementById('cookieConsent');
         if (!consent && cookieDialog) {
-            setTimeout(() => {
+            setTimeout(function () {
                 cookieDialog.classList.add('active');
                 cookieDialog.setAttribute('aria-hidden', 'false');
             }, 1000);

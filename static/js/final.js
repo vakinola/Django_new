@@ -11,6 +11,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- Small helpers ---
   const $ = (id) => document.getElementById(id);
+  const getCsrf = () => {
+    const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : "";
+  };
   const statusEl = $("opStatus");
   console.log("final.js loaded ✅");
   console.log("delete button found:", !!document.getElementById("deleteDocBtn"));
@@ -41,7 +45,7 @@ document.addEventListener("DOMContentLoaded", () => {
   async function postJSON(url, bodyObj) {
     const resp = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrf() },
       body: bodyObj ? JSON.stringify(bodyObj) : null,
     });
     const data = await resp.json().catch(() => ({}));
@@ -310,7 +314,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const resp = await fetch("/delete_doc", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrf() },
         body: JSON.stringify({ filename })
       });
       const data = await resp.json();
@@ -445,7 +449,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
       // 1) Create job_id before uploading
-      const j = await fetch("/init_upload", { method: "POST" }).then(r => r.json());
+      const j = await fetch("/init_upload", { method: "POST", headers: { "X-CSRFToken": getCsrf() } }).then(r => r.json());
       if (!j.ok) { showModal("Could not start job"); return; }
       const jobId = j.job_id;
 
@@ -528,6 +532,7 @@ document.addEventListener("DOMContentLoaded", () => {
       xhr.open("POST", uploadForm.action, true);
       xhr.setRequestHeader("X-Job-Id", jobId);
       xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+      xhr.setRequestHeader("X-CSRFToken", getCsrf());
       xhr.send(formData);
 
     });
@@ -710,12 +715,11 @@ document.addEventListener("DOMContentLoaded", () => {
         `;
       }).join('');
 
+      // Do not render inline explanation toggle before grading (only show after grading)
       item.innerHTML = `
           <div class="fw-semibold mb-1">${q.question || ('Question ' + (idx + 1))}</div>
           ${choicesHtml}
-          <div class="mt-2" id="feedback-${idx}"></div> <!-- feedback placeholder -->
-          ${q.explanation ? `<button class="btn btn-link btn-sm mt-1" type="button" onclick="showExplanation(${idx})">Explanation</button>
-          <div class="alert alert-secondary mt-1" id="explanation-${idx}" style="display:none;">${q.explanation}</div>` : ''}
+          <div class="mt-2" id="feedback-${idx}"></div>
         `;
 
       quizList.appendChild(item);
@@ -781,9 +785,25 @@ document.addEventListener("DOMContentLoaded", () => {
       if (ok) correctCount++;
 
       if (feedbackDiv) {
-        feedbackDiv.innerHTML = ok
+        const resultHtml = ok
           ? `<span class="text-success fw-bold answer-correct d-inline-block">✅  Correct!</span>`
           : `<span class="text-danger fw-bold answer-wrong d-inline-block">❌  Wrong. Correct answer: ${a.correct}</span>`;
+
+        const explanation = lastQuiz[a.idx]?.explanation;
+        const authAllowFeedback = typeof window.__userAuthenticated !== 'undefined' ? window.__userAuthenticated : false;
+        const explanationHtml = (authAllowFeedback && explanation)
+          ? `
+          <div>
+            <button class="explanation-toggle" type="button" onclick="showExplanation(${a.idx})" id="exp-btn-${a.idx}">
+              ▶ Show explanation
+            </button>
+            <div id="explanation-${a.idx}" class="explanation-panel">
+              ${explanation}
+            </div>
+          </div>`
+          : '';
+
+        feedbackDiv.innerHTML = resultHtml + explanationHtml;
       }
     });
 
@@ -795,7 +815,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (filename) {
       fetch("/save_result", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrf() },
         body: JSON.stringify({
           filename: filename,
           correct: correctCount,
@@ -836,6 +856,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Attach once
   if (submitQuizBtn) submitQuizBtn.addEventListener('click', gradeQuiz);
+
+  // Toggle explanation panel for a quiz question (only visible after grading)
+  window.showExplanation = function(idx) {
+    const el = document.getElementById(`explanation-${idx}`);
+    const btn = document.getElementById(`exp-btn-${idx}`);
+    if (!el) return;
+    const isOpen = el.style.display === "block";
+    el.style.display = isOpen ? "none" : "block";
+    if (btn) btn.textContent = isOpen ? "▶ Show explanation" : "▼ Hide explanation";
+  };
 
   function attachExportButtons() {
     if (!exportDiv) return;
@@ -1078,34 +1108,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  if (submitQuizBtn) {
-    submitQuizBtn.addEventListener("click", async () => {
-      const filename = getSelectedDocName();
-      // Mobile UX: If no file selected, open sidebar and show notification
-      if (!filename) {
-        if (window.innerWidth <= 768) { // mobile breakpoint
-          setUploadSidebarOpen(true);
-          syncMobileToggleIcon(true);
-          showModal("Please select a document from 'Uploaded files' first.");
-        } else {
-          showModal("Please select a document from 'Uploaded files' first.");
-        }
-        return;
-      }
-      submitQuizBtn.disabled = true;
-      quizStatus.textContent = "Submitting...";
-      try {
-        const answers = collectQuizAnswers();
-        const data = await postJSON("/submit_quiz", { filename, answers });
-        quizResults.innerHTML = renderQuizResults(data);
-        quizStatus.textContent = "✅ Quiz submitted.";
-      } catch (err) {
-        quizStatus.textContent = `⚠️ ${err.message}`;
-      } finally {
-        submitQuizBtn.disabled = false;
-      }
-    });
-  }
   // =======================================
   // 5️⃣a. Helper to get selected document
   // ======================================
@@ -1226,7 +1228,193 @@ document.addEventListener("DOMContentLoaded", () => {
     console.warn("Expected modal feedback wiring was not found.");
   }
 
-});
+  // ============================================================
+  // Mobile — Tap-to-Upload (auto-upload on file selection)
+  // ============================================================
+  const mobileUploadBox = document.getElementById("mobileUploadBox");
+  const mobileFileInput = document.getElementById("mobileFileInput");
+  const mobileSelectedFileName = document.getElementById("mobileSelectedFileName");
+  const mobileUploadForm = document.getElementById("mobileUploadForm");
+
+  if (mobileUploadBox && mobileFileInput) {
+    mobileUploadBox.addEventListener("click", () => mobileFileInput.click());
+    mobileUploadBox.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); mobileFileInput.click(); }
+    });
+  }
+
+  if (mobileFileInput) {
+    mobileFileInput.addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      if (mobileSelectedFileName) mobileSelectedFileName.textContent = `Selected: ${file.name}`;
+      await mobileDoUpload(file);
+    });
+  }
+
+  async function mobileDoUpload(file) {
+    if (!mobileUploadForm) return;
+
+    window.__currentUploadXhr?.abort();
+    window.__currentUploadXhr = null;
+    if (window.__progressPoller) { clearInterval(window.__progressPoller); window.__progressPoller = null; }
+
+    const mWrap  = document.getElementById("mobileBuildProgress");
+    const mBar   = document.getElementById("mobileBuildBar");
+    const mLabel = document.getElementById("mobileBuildLabel");
+
+    if (mWrap)  mWrap.style.display = "block";
+    if (mBar)   { mBar.classList.remove("bg-danger"); mBar.classList.add("processing"); mBar.style.width = "0%"; }
+    if (mLabel) mLabel.textContent = "Uploading… 0%";
+    if (mobileUploadBox) mobileUploadBox.style.pointerEvents = "none";
+
+    const j = await fetch("/init_upload", {
+      method: "POST",
+      headers: { "X-CSRFToken": getCsrf() },
+      credentials: "same-origin"
+    }).then(r => r.json()).catch(() => ({}));
+
+    if (!j.ok) {
+      showModal("Could not start upload.");
+      if (mobileUploadBox) mobileUploadBox.style.pointerEvents = "";
+      return;
+    }
+    const jobId = j.job_id;
+
+    startMobileProgressPoller(jobId, mBar, mLabel, mWrap);
+
+    const formData = new FormData();
+    formData.append("file", file);
+    __clientUploadPct = 0;
+    __clientUploading = true;
+
+    const xhr = new XMLHttpRequest();
+    window.__currentUploadXhr = xhr;
+
+    xhr.upload.onprogress = (ev) => {
+      if (!ev.lengthComputable) return;
+      const pct = Math.max(1, Math.floor((ev.loaded / ev.total) * 40));
+      __clientUploadPct = pct;
+      if (mBar)   mBar.style.width = pct + "%";
+      if (mLabel) mLabel.textContent = `Uploading… ${pct}%`;
+    };
+
+    xhr.addEventListener("load", () => {
+      __clientUploading = false;
+      if (mBar   && __clientUploadPct < 40) mBar.style.width = "40%";
+      if (mLabel && __clientUploadPct < 40) mLabel.textContent = "Uploading… 40%";
+    });
+
+    xhr.addEventListener("error", () => {
+      __clientUploading = false;
+      if (mobileUploadBox) mobileUploadBox.style.pointerEvents = "";
+      if (mLabel) mLabel.textContent = "Upload error!";
+      if (mBar)   mBar.classList.add("bg-danger");
+    });
+
+    xhr.open("POST", mobileUploadForm.action, true);
+    xhr.setRequestHeader("X-Job-Id", jobId);
+    xhr.setRequestHeader("X-CSRFToken", getCsrf());
+    xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+    xhr.send(formData);
+  }
+
+  function startMobileProgressPoller(jobId, bar, label, wrap) {
+    let lastPct = 0;
+    if (!jobId || !wrap || !bar || !label || window.__progressPoller) return;
+    wrap.style.display = "block";
+    bar.classList.remove("bg-danger");
+
+    const stop = () => { clearInterval(window.__progressPoller); window.__progressPoller = null; };
+
+    window.__progressPoller = setInterval(async () => {
+      try {
+        const resp = await fetch(`/progress/${jobId}`, { cache: "no-store" });
+        if (!resp.ok) { stop(); label.textContent = "Progress unavailable."; return; }
+        const data = await resp.json();
+        const phase = (data.phase || "queued").toLowerCase();
+        let pct = Math.max(0, Math.min(100, Number(data.pct || 0)));
+        if (lastPct > 0 && phase === "queued" && pct === 0) return;
+        if (pct < lastPct && phase !== "error") pct = lastPct;
+        lastPct = pct;
+        if (__clientUploading && phase === "uploading" && pct < 40) return;
+        bar.style.width = pct + "%";
+        label.textContent = `${data.phase || "Working"}… ${pct}%`;
+        if (["processing", "summarizing", "queued"].includes(phase)) bar.classList.add("processing");
+        else bar.classList.remove("processing");
+        if (phase === "completed") {
+          stop();
+          bar.classList.remove("processing");
+          label.textContent = "Completed 100%";
+          if (mobileUploadBox) mobileUploadBox.style.pointerEvents = "";
+          setTimeout(() => location.reload(), 400);
+        } else if (phase === "error") {
+          stop();
+          label.textContent = `Error: ${data.error || "Unknown error"}`;
+          bar.classList.add("bg-danger");
+          if (mobileUploadBox) mobileUploadBox.style.pointerEvents = "";
+        }
+      } catch (err) {
+        stop();
+        label.textContent = "Could not fetch progress.";
+        bar.classList.add("bg-danger");
+        if (mobileUploadBox) mobileUploadBox.style.pointerEvents = "";
+      }
+    }, 500);
+
+    window.addEventListener("beforeunload", stop);
+    window.addEventListener("unload", function cleanup() {
+      stop();
+      window.removeEventListener("unload", cleanup);
+    });
+  }
+
+  // ============================================================
+  // Mobile — "Uploaded Files" collapsible toggle
+  // ============================================================
+  const mobileUploadedToggle = document.getElementById("mobileUploadedToggle");
+  const mobileUploadedPanel  = document.getElementById("mobileUploadedPanel");
+
+  if (mobileUploadedToggle && mobileUploadedPanel) {
+    mobileUploadedToggle.addEventListener("click", () => {
+      const expanded = mobileUploadedToggle.getAttribute("aria-expanded") === "true";
+      mobileUploadedToggle.setAttribute("aria-expanded", String(!expanded));
+      mobileUploadedPanel.classList.toggle("open");
+      mobileUploadedPanel.setAttribute("aria-hidden", String(expanded));
+    });
+  }
+
+  // Mobile delete
+  const mobileDeleteDocBtn = document.getElementById("mobileDeleteDocBtn");
+  if (mobileDeleteDocBtn) {
+    mobileDeleteDocBtn.addEventListener("click", async () => {
+      const checked = document.querySelector("#mobileUploadedPanel .doc-select:checked");
+      const filename = checked?.value;
+      if (!filename) { showModal("Please select a file to delete."); return; }
+
+      const confirmed = await showConfirmModal(`Delete "${filename}" and its database?`);
+      if (!confirmed) return;
+
+      try {
+        const resp = await fetch("/delete_doc", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrf() },
+          credentials: "same-origin",
+          body: JSON.stringify({ filename })
+        });
+        const data = await resp.json();
+        if (!resp.ok || data.ok === false) throw new Error(data.error || "Delete failed");
+        setTimeout(() => location.reload(), 1200);
+      } catch (err) {
+        showAlert(err.message, "danger");
+      }
+    });
+  }
+
+  // ============================================================
+  // Bug fix: these must live inside DOMContentLoaded to access
+  // fileList and deleteDocBtn (const-scoped to this callback)
+  // ============================================================
   function hasUploadedDocs() {
     if (!fileList) return false;
     return fileList.querySelectorAll(".doc-item .doc-select").length > 0;
@@ -1237,4 +1425,4 @@ document.addEventListener("DOMContentLoaded", () => {
     deleteDocBtn.style.display = hasUploadedDocs() ? "block" : "none";
   }
 
-  syncDeleteButtonVisibility();
+});

@@ -49,8 +49,11 @@
         document.body.style.overflow = 'hidden';
     }
 
+    const forgotPasswordModal = document.getElementById('forgotPasswordModal');
+    const forgotPasswordSentModal = document.getElementById('forgotPasswordSentModal');
+
     function closeAllEmailModals() {
-        [emailLoginModal, emailSignupModal].forEach(m => { if (m) m.classList.remove('active'); });
+        [emailLoginModal, emailSignupModal, forgotPasswordModal, forgotPasswordSentModal].forEach(m => { if (m) m.classList.remove('active'); });
         if (backdrop) backdrop.classList.remove('active');
         document.body.style.overflow = '';
         if (mainLoginModal) mainLoginModal.classList.remove('blended');
@@ -69,6 +72,14 @@
     ) {
         openModal(emailLoginModal);
     }
+
+    // Auto-dismiss server-rendered flash messages in auth modals after 7 seconds
+    document.querySelectorAll('#emailLoginModal .flash, #emailSignupModal .flash').forEach(function (flash) {
+        setTimeout(function () {
+            flash.classList.add('fade-out');
+            setTimeout(function () { flash.remove(); }, 400);
+        }, 7000);
+    });
 
     // Back / navigation
     document.querySelector('.sa-email-login-back')?.addEventListener('click', () => {
@@ -94,6 +105,58 @@
     // Switch links
     document.querySelectorAll('.sa-email-switch-to-signup').forEach(el => el.addEventListener('click', (e) => { e.preventDefault(); openModal(emailSignupModal); }));
     document.querySelectorAll('.sa-email-switch-to-login').forEach(el => el.addEventListener('click', (e) => { e.preventDefault(); openModal(emailLoginModal); }));
+
+    // Forgot password link → open forgot modal
+    document.querySelector('.sa-forgot-link')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        openModal(forgotPasswordModal);
+    });
+
+    // Forgot back → return to email login
+    document.querySelector('.sa-forgot-back')?.addEventListener('click', () => {
+        if (forgotPasswordModal) forgotPasswordModal.classList.remove('active');
+        openModal(emailLoginModal);
+    });
+
+    // Forgot sent done / close → close all
+    document.querySelector('.sa-forgot-sent-done')?.addEventListener('click', closeAllEmailModals);
+    document.querySelectorAll('.sa-forgot-close, .sa-forgot-sent-close').forEach(b => b.addEventListener('click', closeAllEmailModals));
+
+    // Forgot password form AJAX submit
+    const forgotPasswordForm = document.getElementById('forgotPasswordForm');
+    const forgotPasswordFlash = document.getElementById('forgotPasswordFlash');
+
+    forgotPasswordForm?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const data = new FormData(forgotPasswordForm);
+        const csrfToken = getCsrfToken(forgotPasswordForm);
+        const headers = csrfToken ? { 'X-CSRFToken': csrfToken } : {};
+
+        forgotPasswordFlash.innerHTML = '';
+
+        fetch('/accounts/password-reset/', {
+            method: 'POST',
+            headers,
+            body: data,
+            credentials: 'same-origin'
+        })
+            .then(async res => {
+                const result = await res.json();
+                if (!res.ok) throw new Error(result?.message || 'Something went wrong');
+                return result;
+            })
+            .then(() => {
+                forgotPasswordModal.classList.remove('active');
+                if (forgotPasswordSentModal) forgotPasswordSentModal.classList.add('active');
+                forgotPasswordForm.reset();
+            })
+            .catch(err => {
+                const flash = document.createElement('div');
+                flash.className = 'flash flash-error';
+                flash.innerHTML = `<span class="flash-message">${err.message}</span>`;
+                forgotPasswordFlash.appendChild(flash);
+            });
+    });
 
     // Close buttons
     document.querySelectorAll('.sa-email-login-close').forEach(b => b.addEventListener('click', closeAllEmailModals));
@@ -172,7 +235,7 @@
             <button class="flash-close" onclick="this.parentElement.remove()" aria-label="Dismiss">×</button>
         `;
         container.appendChild(flash);
-        flash.scrollIntoView({ block: 'nearest' });
+        flash.scrollIntoView();
         setTimeout(() => {
             flash.classList.add('fade-out');
             setTimeout(() => flash.remove(), 400);
