@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Settings | StudyAssists{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'fonts/poppins/stylesheet.css' %}">
+<link rel="stylesheet" href="{% static 'css/settings.css' %}">
+<style>
+    main {
+        align-items: flex-start;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="settings-page">
+
+    <div class="flash-container">
+        {% if messages %}
+        {% for message in messages %}
+        {% if "auth-login" not in message.tags and "auth-signup" not in message.tags %}
+        <div class="flash flash-{{ message.level_tag }}" data-message-tags="{{ message.tags }}">
+            <span class="flash-message">{{ message }}</span>
+            <button class="flash-close" onclick="this.parentElement.remove()" aria-label="Dismiss">×</button>
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% endif %}
+    </div>
+
+    <h1 class="settings-title">Settings</h1>
+
+    <!-- ========== ACCOUNT ========== -->
+    <section class="settings-section" id="account">
+        <div class="settings-section-header">
+            <svg xmlns="http://www.w3.org/2000/svg" height="22px" viewBox="0 -960 960 960" width="22px"
+                fill="currentColor">
+                <path
+                    d="M480-480q-66 0-113-47t-47-113q0-66 47-113t113-47q66 0 113 47t47 113q0 66-47 113t-113 47ZM160-160v-112q0-34 17.5-62.5T224-378q62-31 129-46.5T480-440q68 0 135 15.5T744-378q29 15 46.5 43.5T808-272v112H160Z" />
+            </svg>
+            <div>
+                <h2>Account</h2>
+                <p>Manage your account information and profile settings.</p>
+            </div>
+        </div>
+
+        <form method="post" action="{% url 'settings_page' %}" enctype="multipart/form-data" class="settings-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update_profile">
+
+            <!-- Avatar row -->
+            <div class="settings-avatar-row">
+                <div class="settings-avatar">
+                    {% if profile.profile_image %}
+                    <img src="{{ profile.profile_image.url }}" alt="Profile" id="avatar-preview"
+                        class="settings-avatar-img">
+                    {% else %}
+                    <div class="settings-avatar-initials" id="avatar-placeholder">
+                        {{ request.user.first_name|default:request.user.email|first|upper }}
+                    </div>
+                    <img src="" alt="Profile" id="avatar-preview" class="settings-avatar-img" style="display:none;">
+                    {% endif %}
+                </div>
+                <label class="settings-btn-secondary" for="profile-image-input">Change Image</label>
+                <input type="file" id="profile-image-input" name="profile_image" accept="image/*" style="display:none;">
+            </div>
+
+            <!-- Full name -->
+            <div class="settings-field-row">
+                <span class="settings-field-label">Full Name</span>
+                <div class="settings-field-value">
+                    <input type="text" name="name" id="name-input" value="{{ display_name }}"
+                        class="settings-inline-input" readonly>
+                    <button type="button" class="settings-edit-btn" id="edit-name-btn" aria-label="Edit name">
+                        <svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px"
+                            fill="currentColor">
+                            <path
+                                d="M200-200h57l391-391-57-57-391 391v57Zm-80 80v-170l528-527q12-11 26.5-17t30.5-6q16 0 31 6t26 18l55 56q12 11 17.5 26t5.5 30q0 16-5.5 30.5T817-647L290-120H120Zm640-584-56-56 56 56Zm-141 85-28-29 57 57-29-28Z" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <hr class="settings-divider">
+
+            <!-- Email -->
+            <div class="settings-field-row">
+                <span class="settings-field-label">Email</span>
+                <span class="settings-field-static">{{ request.user.email }}</span>
+            </div>
+
+            <hr class="settings-divider">
+
+            <div class="settings-form-actions">
+                <button type="submit" class="settings-btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </section>
+
+    <!-- ========== DATA CONTROLS ========== -->
+    <section class="settings-section" id="data-controls">
+        <div class="settings-section-header">
+            <svg xmlns="http://www.w3.org/2000/svg" height="22px" viewBox="0 -960 960 960" width="22px"
+                fill="currentColor">
+                <path
+                    d="M480-80q-83 0-141.5-58.5T280-280q0-83 58.5-141.5T480-480q83 0 141.5 58.5T680-280q0 83-58.5 141.5T480-80ZM160-560q-33 0-56.5-23.5T80-640v-160q0-33 23.5-56.5T160-880h640q33 0 56.5 23.5T880-800v160q0 33-23.5 56.5T800-560H160Zm0-80h640v-160H160v160Zm0 0v-160 160Z" />
+            </svg>
+            <div>
+                <h2>Data Controls</h2>
+                <p>Manage your data and account deletion.</p>
+            </div>
+        </div>
+
+        <div class="settings-section-body">
+            <div class="settings-danger-row">
+                <div>
+                    <strong>Delete Account</strong>
+                    <p>Permanently delete your account and all data</p>
+                </div>
+                <button type="button" class="settings-btn-danger" id="delete-account-btn">Delete</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== BILLING ========== -->
+    <!-- 
+    <section class="settings-section" id="billing">
+        <div class="settings-section-header">
+            <svg xmlns="http://www.w3.org/2000/svg" height="22px" viewBox="0 -960 960 960" width="22px" fill="currentColor">
+                <path d="M880-720v480q0 33-23.5 56.5T800-160H160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720Zm-720 80h640v-80H160v80Zm0 160v240h640v-240H160Zm0 240v-480 480Z"/>
+            </svg>
+            <div>
+                <h2>Billing</h2>
+                <p>Manage your subscription and payment information.</p>
+            </div>
+        </div>
+
+        <div class="settings-section-body">
+            <div class="settings-billing-row">
+                <div>
+                    <strong>Upgrade</strong>
+                    <p>You are currently on the free plan</p>
+                </div>
+                <button type="button" class="settings-btn-upgrade">Upgrade to Unlimited</button>
+            </div>
+        </div>
+    </section>
+    -->
+
+</div>
+
+<!-- Delete account confirmation overlay -->
+<div class="settings-confirm-overlay" id="delete-confirm-overlay">
+    <div class="settings-confirm-modal">
+        <h3>Delete Account</h3>
+        <p>This will permanently delete your account and all your data. This action cannot be undone.</p>
+        <div class="settings-confirm-actions">
+            <button type="button" class="settings-btn-secondary" id="cancel-delete-btn">Cancel</button>
+            <form method="post" action="{% url 'settings_page' %}">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete_account">
+                <button type="submit" class="settings-btn-danger">Yes, delete my account</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Edit name toggle
+    const nameInput = document.getElementById('name-input');
+    const editBtn = document.getElementById('edit-name-btn');
+    if (editBtn && nameInput) {
+        editBtn.addEventListener('click', () => {
+            nameInput.removeAttribute('readonly');
+            nameInput.focus();
+            editBtn.style.display = 'none';
+        });
+    }
+
+    // Profile image preview
+    const imageInput = document.getElementById('profile-image-input');
+    const preview = document.getElementById('avatar-preview');
+    const placeholder = document.getElementById('avatar-placeholder');
+    if (imageInput) {
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                if (preview) {
+                    preview.src = ev.target.result;
+                    preview.style.display = 'block';
+                }
+                if (placeholder) placeholder.style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    // Delete account confirmation
+    const deleteBtn = document.getElementById('delete-account-btn');
+    const overlay = document.getElementById('delete-confirm-overlay');
+    const cancelBtn = document.getElementById('cancel-delete-btn');
+    if (deleteBtn && overlay) {
+        deleteBtn.addEventListener('click', () => overlay.classList.add('active'));
+        cancelBtn.addEventListener('click', () => overlay.classList.remove('active'));
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) overlay.classList.remove('active');
+        });
+    }
+</script>
+{% endblock %}

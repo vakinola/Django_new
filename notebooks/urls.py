@@ -28,6 +28,7 @@ urlpatterns = [
     path("send-feedback", views.send_feedback, name="send_feedback"),
 
 
+    path("settings/", views.settings_page, name="settings_page"),
     path("privacy-policy/", views.privacy_policy, name="privacy_policy"),
     path("terms-of-service/", views.terms_of_service, name="terms_of_service"),
 
@@ -36,5 +37,5 @@ urlpatterns = [
     path("accounts/password-reset/complete/", views.password_reset_complete, name="password_reset_complete"),
 
     path("auth/google/", views.google_login, name="google_login"),
-    path("auth/google/callback", views.google_callback, name="google_callback"),
+    path("auth/google/callback/", views.google_callback, name="google_callback"),
 ]

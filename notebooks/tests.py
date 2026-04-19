@@ -18,7 +18,8 @@ class AuthViewTests(TestCase):
         response = self.client.post(
             reverse("register"),
             {
-                "name": "Ada Lovelace",
+                "first_name": "Ada",
+                "last_name": "Lovelace",
                 "email": "ada@example.com",
                 "password": "AComplexPass123!",
                 "next": reverse("home"),
@@ -29,6 +30,8 @@ class AuthViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         user = User.objects.get(email="ada@example.com")
         self.assertEqual(user.username, "ada@example.com")
+        self.assertEqual(user.first_name, "Ada")
+        self.assertEqual(user.last_name, "Lovelace")
         self.assertNotIn("_auth_user_id", self.client.session)
         self.assertContains(response, "Account created. Please sign in.")
 
@@ -36,7 +39,8 @@ class AuthViewTests(TestCase):
         response = self.client.post(
             reverse("register"),
             {
-                "name": "Katherine Johnson",
+                "first_name": "Katherine",
+                "last_name": "Johnson",
                 "email": "katherine@example.com",
                 "password": "AComplexPass123!",
                 "next": reverse("home"),
@@ -71,7 +75,8 @@ class AuthViewTests(TestCase):
         response = self.client.post(
             reverse("register"),
             {
-                "name": "Ada Lovelace",
+                "first_name": "Ada",
+                "last_name": "Lovelace",
                 "email": "ada@example.com",
                 "password": "123",
                 "next": reverse("home"),
