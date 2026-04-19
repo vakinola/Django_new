@@ -58,6 +58,17 @@ document.addEventListener("DOMContentLoaded", () => {
   function setStatus(text) {
     if (statusEl) statusEl.textContent = text;
   }
+
+  function formatElapsedTime(totalSeconds) {
+    const seconds = Math.max(0, Number(totalSeconds) || 0);
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+
+    if (minutes > 0) {
+      return `${minutes} min ${remainingSeconds} sec`;
+    }
+    return `${remainingSeconds} sec`;
+  }
   /*
   // Smoothly animate the progress bar width (helps fast uploads not "jump")
   function smoothTo(targetPct, bar, label, phaseText) {
@@ -116,9 +127,28 @@ document.addEventListener("DOMContentLoaded", () => {
   const exportDiv = $("export-options");
   const quizBox = $("quizBox");
   const quizList = $("quizList");
-  const quizStatus = $("quizStatus");
-  const quizResults = $("quizResults");
+  // status near Generate button (used instead of the old quizStatus element)
+  const quizResultsContainer = $("examSummary") || $("quiz-results");
+  const simSettingsToggle = $("simSettingsToggle");
+  const simSettingsPanel = $("simSettingsPanel");
+  const simEnabled = $("simEnabled");
+  const simTime = $("simTime");
+  const simPass = $("simPass");
+  const generateStatus = $("generateStatus");
   const submitQuizBtn = $("submitQuizBtn");
+  const simulationBanner = $("simulationBanner");
+  const simulationTimer = $("simulationTimer");
+  const simFloatingTimer = $("simFloatingTimer");
+  const simFloatingCountdown = $("simFloatingCountdown");
+
+  // Simulation settings toggle
+  if (simSettingsToggle && simSettingsPanel) {
+    simSettingsToggle.addEventListener('click', () => {
+      const isOpen = simSettingsToggle.getAttribute('aria-expanded') === 'true';
+      simSettingsToggle.setAttribute('aria-expanded', String(!isOpen));
+      simSettingsPanel.style.display = isOpen ? 'none' : 'block';
+    });
+  }
 
   // Sidebar / mobile controls
   const fileList = $("fileList");
@@ -129,6 +159,68 @@ document.addEventListener("DOMContentLoaded", () => {
   const sidebar = $("sidebar");
   const mobileToggle = $("mobileToggle");
   const navBackdrop = document.querySelector(".sa-backdrop");
+  let simulationTimerId = null;
+  let simulationEndAt = null;
+  let simulationAutoSubmitting = false;
+
+  function formatCountdown(totalSeconds) {
+    const safeSeconds = Math.max(0, Number(totalSeconds) || 0);
+    const minutes = Math.floor(safeSeconds / 60);
+    const seconds = safeSeconds % 60;
+    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
+
+  function clearSimulationTimer(options = {}) {
+    if (simulationTimerId) {
+      clearInterval(simulationTimerId);
+      simulationTimerId = null;
+    }
+    simulationEndAt = null;
+    simulationAutoSubmitting = false;
+    if (!options.keepBanner && simulationBanner) simulationBanner.style.display = "none";
+    if (simulationTimer) simulationTimer.textContent = "00:00";
+    if (simFloatingTimer) { simFloatingTimer.style.display = "none"; simFloatingTimer.setAttribute("aria-hidden", "true"); }
+    if (simFloatingCountdown) simFloatingCountdown.textContent = "00:00";
+  }
+
+  function updateSimulationCountdown() {
+    if (!simulationTimer || !simulationEndAt) return;
+    const remainingSeconds = Math.max(0, Math.ceil((simulationEndAt - Date.now()) / 1000));
+    simulationTimer.textContent = formatCountdown(remainingSeconds);
+    if (simFloatingCountdown) simFloatingCountdown.textContent = formatCountdown(remainingSeconds);
+
+    if (remainingSeconds <= 0) {
+      clearSimulationTimer({ keepBanner: true });
+      simulationAutoSubmitting = true;
+      if (generateStatus) generateStatus.textContent = "⏰ Time is up. Auto-submitting...";
+      gradeQuiz(true);
+    }
+  }
+
+  function startSimulationTimer() {
+    clearSimulationTimer();
+    if (!simEnabled?.checked) return;
+
+    const durationMinutes = Math.max(1, parseInt(simTime?.value || "5", 10));
+    simulationEndAt = Date.now() + durationMinutes * 60 * 1000;
+    if (simulationBanner) simulationBanner.style.display = "flex";
+    updateSimulationCountdown();
+    simulationTimerId = window.setInterval(updateSimulationCountdown, 1000);
+  }
+
+  // Track whether simulationBanner is in the viewport; show/hide the floating timer accordingly.
+  let bannerInView = true;
+  if (simulationBanner && simFloatingTimer) {
+    const bannerObserver = new IntersectionObserver((entries) => {
+      bannerInView = entries[0].isIntersecting;
+      if (simulationTimerId) {
+        const shouldShow = !bannerInView;
+        simFloatingTimer.style.display = shouldShow ? "flex" : "none";
+        simFloatingTimer.setAttribute("aria-hidden", shouldShow ? "false" : "true");
+      }
+    }, { threshold: 0.1 });
+    bannerObserver.observe(simulationBanner);
+  }
 
   function setUploadSidebarOpen(isOpen) {
     if (!sidebar) return;
@@ -695,6 +787,8 @@ document.addEventListener("DOMContentLoaded", () => {
     console.log("QUIZ DATA:", JSON.stringify(quiz, null, 2));
     if (!quizList) return;
     quizList.innerHTML = '';
+    // record quiz start time (used for avg time per question)
+    window.__quizStartTime = Date.now();
     quiz.forEach((q, idx) => {
       const correct = (q.correct || '').trim().replace(/[^A-E]/ig, '').toUpperCase(); // "A"–"E"
       const item = document.createElement('div');
@@ -725,12 +819,12 @@ document.addEventListener("DOMContentLoaded", () => {
       quizList.appendChild(item);
     });
 
-    if (quizResults) quizResults.innerHTML = '';   // clear prior summary
-    if (quizStatus) quizStatus.textContent = '';  // clear status line
+    if (quizResultsContainer) quizResultsContainer.innerHTML = '';   // clear prior summary
+    if (generateStatus) generateStatus.textContent = '';  // clear status line near Generate
     if (quizBox) quizBox.style.display = 'block';
   }
 
-  function gradeQuiz() {
+  function gradeQuiz(forceSubmit = false) {
     if (!quizList) return;
     const items = [...quizList.querySelectorAll('.list-group-item')];
     const total = items.length;
@@ -746,17 +840,31 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // NEW: grab warning div
     const quizWarning = document.getElementById('quizWarning');
-    // Require all answered
+    // Require all answered — if not, show warning and jump to first unanswered
     const unanswered = answers.filter(a => !a.selected).map(a => a.idx + 1);
-    if (unanswered.length) {
-      if (quizWarning) quizWarning.textContent = "⛔Please answer all Questions before submitting";
-      if (quizResults) quizResults.innerHTML = '';
-      if (quizStatus) quizStatus.textContent = "";
+    if (unanswered.length && !forceSubmit) {
+      if (quizWarning) quizWarning.textContent = "⛔ Please answer all questions before submitting";
+      if (generateStatus) generateStatus.textContent = "";
+      // Scroll to first unanswered
+      const firstUnIdx = answers.find(a => !a.selected)?.idx;
+      if (typeof firstUnIdx === 'number') {
+        const firstUnEl = quizList.querySelectorAll('.list-group-item')[firstUnIdx];
+        if (firstUnEl) {
+          firstUnEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          const firstInput = firstUnEl.querySelector('input[type="radio"]');
+          if (firstInput) firstInput.focus();
+        }
+      }
       return; // ⛔ do not reveal anything yet
     }
 
     // if we get here, everything is answered → clear warning
-    if (quizWarning) quizWarning.textContent = "";
+    if (quizWarning) {
+      quizWarning.textContent = forceSubmit && unanswered.length
+        ? "⏰ Time expired. Unanswered questions were marked incorrect."
+        : "";
+    }
+    clearSimulationTimer();
     quizSubmitted = true;
 
     let correctCount = 0;
@@ -828,37 +936,60 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
 
-    // Show overall score
-    if (quizResults) {
-      quizResults.innerHTML = `
-        <div style="
-          border: 1px solid;
-          padding: 10px;
-          border-radius: 5px;
-          margin: 10px 0 0 0;
-          font-size: 14px;
-          font-weight: 700;
-        ">
-          Your Score: <strong>${correctCount}/${total}</strong> (${pct}%)
+    // Build and show the detailed cards in the exam summary container
+    if (quizResultsContainer) {
+      // compute elapsed time and avg per question
+      const start = window.__quizStartTime || Date.now();
+      const elapsedSec = Math.max(0, Math.round((Date.now() - start) / 1000));
+      const avgPerQ = total > 0 ? Math.round(elapsedSec / total) : 0;
+      const elapsedLabel = formatElapsedTime(elapsedSec);
+      const passMark = simPass ? parseInt(simPass.value || '75', 10) : 75;
+      const passed = pct >= passMark;
+      const progressClass = passed ? 'quiz-progress-correct' : 'quiz-progress-fail';
+
+      const barBg = passed ? '' : 'background: #fca5a5;';
+      const barWidth = pct > 0 ? pct : (passed ? 0 : 4);
+
+      quizResultsContainer.innerHTML = `
+        <div class="quiz-result-card">
+          <h3>Exam Summary</h3>
+          <p><strong>Score:</strong> ${pct}%</p>
+          <p><strong>Pass Mark:</strong> ${passMark}%</p>
+          <div class="quiz-progress-bar" style="${barBg}">
+            <div class="quiz-progress ${progressClass}" style="width:${barWidth}%"></div>
+          </div>
+        </div>
+
+        <div class="quiz-result-card">
+          <h3>Performance Analysis</h3>
+          <p><strong>Total Time Elapsed:</strong> ${elapsedLabel}</p>
+          <p><strong>Avg. Time per Question:</strong> ${avgPerQ} sec</p>
+        </div>
+
+        <div class="quiz-result-card">
+          <h3>Detailed Review</h3>
+          <a href="/results" class="quiz-view-results-btn">View Results →</a>
         </div>
       `;
 
-      // Show the "View Scores" button
-      const viewBtn = document.getElementById("viewScoresBtn");
-      if (viewBtn) {
-        viewBtn.classList.remove("result-hidden");
+      quizResultsContainer.style.display = 'flex';
+
+      if (forceSubmit) {
+        setTimeout(() => quizResultsContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 150);
       }
     }
-    if (quizStatus) quizStatus.textContent = '✅ Graded.';
+    if (generateStatus) {
+      generateStatus.textContent = forceSubmit ? '⏰ Auto-submitted and graded.' : '✅ Graded.';
+    }
 
 
   }
 
-  // Attach once
-  if (submitQuizBtn) submitQuizBtn.addEventListener('click', gradeQuiz);
+  // Attach once — pass explicit false so the MouseEvent is never treated as forceSubmit
+  if (submitQuizBtn) submitQuizBtn.addEventListener('click', () => gradeQuiz(false));
 
   // Toggle explanation panel for a quiz question (only visible after grading)
-  window.showExplanation = function(idx) {
+  window.showExplanation = function (idx) {
     const el = document.getElementById(`explanation-${idx}`);
     const btn = document.getElementById(`exp-btn-${idx}`);
     if (!el) return;
@@ -901,8 +1032,8 @@ document.addEventListener("DOMContentLoaded", () => {
       doc.setFontSize(16);
       doc.text(`Title: ${displayTitle}`, 10, 15);
 
-      if (hasAnswers && quizResults?.innerHTML.includes("Your Score")) {
-        const m = quizResults.innerHTML.match(/(\d+)\/(\d+).*?(\d+)%/);
+      if (hasAnswers && quizResultsContainer?.innerHTML.includes("Your Score")) {
+        const m = quizResultsContainer.innerHTML.match(/(\d+)\/(\d+).*?(\d+)%/);
         if (m) {
           doc.setFont("helvetica", "normal");
           doc.setFontSize(12);
@@ -1055,6 +1186,8 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // No delegated handler needed for results link (uses /results page)
+
 
 
 
@@ -1063,10 +1196,12 @@ document.addEventListener("DOMContentLoaded", () => {
   function clearPreviousQuiz() {
     lastQuiz = [];
     quizSubmitted = false;
+    clearSimulationTimer();
 
     if (quizList) quizList.innerHTML = "";
-    if (quizResults) quizResults.innerHTML = "";
-    if (quizStatus) quizStatus.textContent = "";
+    if (quizResultsContainer) quizResultsContainer.innerHTML = "";
+    if (quizResultsContainer) quizResultsContainer.style.display = 'none';
+    if (generateStatus) generateStatus.textContent = "";
     if (quizWarning) quizWarning.textContent = "";
     if (exportDiv) exportDiv.innerHTML = "";
     if (quizBox) quizBox.style.display = "none";
@@ -1093,15 +1228,16 @@ document.addEventListener("DOMContentLoaded", () => {
       clearPreviousQuiz();
 
       generateBtn.disabled = true;
-      if (quizStatus) quizStatus.textContent = `Generating ${num} questions...`;
+      if (generateStatus) generateStatus.textContent = `Generating ${num} questions...`;
       try {
         const data = await postJSON("/generate_quiz", { num_questions: num, filename, });
         lastQuiz = data.quiz || [];
         renderQuiz(lastQuiz);
         attachExportButtons();
-        if (quizStatus) quizStatus.textContent = '✅ Quiz ready.';
+        startSimulationTimer();
+        if (generateStatus) generateStatus.textContent = '✅ Quiz ready.';
       } catch (err) {
-        if (quizStatus) quizStatus.textContent = `⚠️ ${err.message}`;
+        if (generateStatus) generateStatus.textContent = `⚠️ ${err.message}`;
       } finally {
         generateBtn.disabled = false;
       }
@@ -1136,17 +1272,18 @@ document.addEventListener("DOMContentLoaded", () => {
         // Clear previous quiz
         const quizBox = document.getElementById("quizBox");
         const quizList = document.getElementById("quizList");
-        const quizResults = document.getElementById("quizResults");
-        const quizStatus = document.getElementById("quizStatus");
+        const quizResultsEl = document.getElementById("examSummary") || document.getElementById("quiz-results");
+        const generateStatusEl = document.getElementById("generateStatus");
         const quizWarning = document.getElementById("quizWarning");
         const exportDiv = document.getElementById("export-options");
 
         if (quizList) quizList.innerHTML = "";
-        if (quizResults) quizResults.innerHTML = "";
-        if (quizStatus) quizStatus.textContent = "";
+        if (quizResultsEl) { quizResultsEl.innerHTML = ""; quizResultsEl.style.display = 'none'; }
+        if (generateStatusEl) generateStatusEl.textContent = "";
         if (quizWarning) quizWarning.textContent = "";
         if (quizBox) quizBox.style.display = "none";
         if (exportDiv) exportDiv.innerHTML = "";
+        clearSimulationTimer();
 
         // When user selects a doc, load its summary
         const filename = e.target.value;
@@ -1259,12 +1396,12 @@ document.addEventListener("DOMContentLoaded", () => {
     window.__currentUploadXhr = null;
     if (window.__progressPoller) { clearInterval(window.__progressPoller); window.__progressPoller = null; }
 
-    const mWrap  = document.getElementById("mobileBuildProgress");
-    const mBar   = document.getElementById("mobileBuildBar");
+    const mWrap = document.getElementById("mobileBuildProgress");
+    const mBar = document.getElementById("mobileBuildBar");
     const mLabel = document.getElementById("mobileBuildLabel");
 
-    if (mWrap)  mWrap.style.display = "block";
-    if (mBar)   { mBar.classList.remove("bg-danger"); mBar.classList.add("processing"); mBar.style.width = "0%"; }
+    if (mWrap) mWrap.style.display = "block";
+    if (mBar) { mBar.classList.remove("bg-danger"); mBar.classList.add("processing"); mBar.style.width = "0%"; }
     if (mLabel) mLabel.textContent = "Uploading… 0%";
     if (mobileUploadBox) mobileUploadBox.style.pointerEvents = "none";
 
@@ -1295,13 +1432,13 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!ev.lengthComputable) return;
       const pct = Math.max(1, Math.floor((ev.loaded / ev.total) * 40));
       __clientUploadPct = pct;
-      if (mBar)   mBar.style.width = pct + "%";
+      if (mBar) mBar.style.width = pct + "%";
       if (mLabel) mLabel.textContent = `Uploading… ${pct}%`;
     };
 
     xhr.addEventListener("load", () => {
       __clientUploading = false;
-      if (mBar   && __clientUploadPct < 40) mBar.style.width = "40%";
+      if (mBar && __clientUploadPct < 40) mBar.style.width = "40%";
       if (mLabel && __clientUploadPct < 40) mLabel.textContent = "Uploading… 40%";
     });
 
@@ -1309,7 +1446,7 @@ document.addEventListener("DOMContentLoaded", () => {
       __clientUploading = false;
       if (mobileUploadBox) mobileUploadBox.style.pointerEvents = "";
       if (mLabel) mLabel.textContent = "Upload error!";
-      if (mBar)   mBar.classList.add("bg-danger");
+      if (mBar) mBar.classList.add("bg-danger");
     });
 
     xhr.open("POST", mobileUploadForm.action, true);
@@ -1373,7 +1510,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Mobile — "Uploaded Files" collapsible toggle
   // ============================================================
   const mobileUploadedToggle = document.getElementById("mobileUploadedToggle");
-  const mobileUploadedPanel  = document.getElementById("mobileUploadedPanel");
+  const mobileUploadedPanel = document.getElementById("mobileUploadedPanel");
 
   if (mobileUploadedToggle && mobileUploadedPanel) {
     mobileUploadedToggle.addEventListener("click", () => {

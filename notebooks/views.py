@@ -327,20 +327,29 @@ def register_user(request):
 
     _record_attempt(request, "register", window_seconds=3600)
 
-    name = (request.POST.get("name") or "").strip()
+    first_name = (request.POST.get("first_name") or "").strip()
+    last_name = (request.POST.get("last_name") or "").strip()
+    legacy_name = (request.POST.get("name") or "").strip()
     email = (request.POST.get("email") or "").strip().lower()
     password = request.POST.get("password") or ""
 
-    if not name or not email or not password:
-        messages.error(request, "Enter name, email, and password.", extra_tags="auth-signup")
+    if legacy_name and (not first_name or not last_name):
+        first_name, _, parsed_last_name = legacy_name.partition(" ")
+        last_name = last_name or parsed_last_name.strip()
+
+    if not first_name or not last_name or not email or not password:
+        messages.error(
+            request,
+            "Enter first name, last name, email, and password.",
+            extra_tags="auth-signup",
+        )
         return redirect(redirect_url)
 
     if User.objects.filter(email__iexact=email).exists():
         messages.error(request, "Email already registered.", extra_tags="auth-signup")
         return redirect(redirect_url)
 
-    first_name, _, last_name = name.partition(" ")
-    user = User(username=email, email=email, first_name=first_name, last_name=last_name.strip())
+    user = User(username=email, email=email, first_name=first_name, last_name=last_name)
 
     try:
         validate_password(password, user=user)
@@ -450,6 +459,37 @@ def privacy_policy(request):
 
 def terms_of_service(request):
     return render(request, "terms_of_service.html")
+
+
+def settings_page(request):
+    from .models import UserProfile
+    if not request.user.is_authenticated:
+        return redirect("home")
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "update_profile":
+            name = request.POST.get("name", "").strip()
+            if name:
+                parts = name.split(" ", 1)
+                request.user.first_name = parts[0]
+                request.user.last_name = parts[1] if len(parts) > 1 else ""
+                request.user.save()
+            if "profile_image" in request.FILES:
+                profile.profile_image = request.FILES["profile_image"]
+                profile.save()
+            messages.success(request, "Profile updated.")
+        elif action == "delete_account":
+            request.user.delete()
+            return redirect("home")
+        return redirect("settings_page")
+    # Build a reliable display name: full name → first name → email handle
+    display_name = (
+        request.user.get_full_name()
+        or request.user.first_name
+        or request.user.email.split("@")[0]
+    )
+    return render(request, "settings.html", {"profile": profile, "display_name": display_name})
 
 
 @require_POST
@@ -977,11 +1017,12 @@ def google_login(request):
     state = secrets.token_urlsafe(16)
     request.session["google_oauth_state"] = state
 
-    log.info("Google OAuth redirect_uri: %s", settings.GOOGLE_REDIRECT_URI)
+    redirect_uri = request.build_absolute_uri("/auth/google/callback/")
+    log.info("Google OAuth redirect_uri: %s", redirect_uri)
 
     params = {
         "client_id": settings.GOOGLE_CLIENT_ID,
-        "redirect_uri": settings.GOOGLE_REDIRECT_URI,
+        "redirect_uri": redirect_uri,
         "response_type": "code",
         "scope": "openid email profile",
         "state": state,
@@ -1010,7 +1051,7 @@ def google_callback(request):
         "code": code,
         "client_id": settings.GOOGLE_CLIENT_ID,
         "client_secret": settings.GOOGLE_CLIENT_SECRET,
-        "redirect_uri": settings.GOOGLE_REDIRECT_URI,
+        "redirect_uri": request.build_absolute_uri("/auth/google/callback/"),
         "grant_type": "authorization_code",
     }, timeout=10)
 
@@ -1054,5 +1095,4 @@ def google_callback(request):
 
     login(request, user)
     return redirect("/")
-
 

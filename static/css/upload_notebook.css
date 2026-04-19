@@ -58,6 +58,8 @@ body {
 
 }
 
+
+
 .navbar-header {
   padding: 17px 0;
 }
@@ -110,12 +112,21 @@ ul.nav>li>a.active {
 /* Sidebar */
 .sidebar {
   width: 250px;
-  background: #f1f3f5;
-  padding: 5px 20px;
+  background: #fff;
+  padding: 0;
   transition: all 0.3s ease;
   position: relative;
   z-index: 11111;
   color: rgba(0, 0, 0, 0.6) !important;
+  border-right: 1px solid #e6eaf4;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebar-main-content {
+  flex: 1 1 auto;
+  overflow-y: auto;
 }
 
 .brand {
@@ -173,10 +184,15 @@ ul.nav>li>a.active {
 
 .sidebar-content {
   transition: opacity 0.3s ease;
+  padding: 20px 16px 12px;
 }
 
 .sidebar-content h2 {
-  margin-top: 20px;
+  margin-top: 0;
+  margin-bottom: 16px;
+  color: #1a1a2e;
+  font-size: 1.05rem;
+  font-weight: 700;
 }
 
 .sidebar.collapsed .sidebar-content {
@@ -204,7 +220,7 @@ ul.nav>li>a.active {
   position: absolute;
   top: 10px;
   right: 0px;
-  background: #f1f3f5;
+  background: #fff;
   color: rgba(0, 0, 0, 0.6);
   border-radius: 0 5px 5px 0;
   padding: 8px 5px;
@@ -214,6 +230,7 @@ ul.nav>li>a.active {
   z-index: 1001;
   border: 1px solid #dee2e6;
 }
+
 
 .sidebar.collapsed .toggle-btn {
   right: 0px;
@@ -257,7 +274,9 @@ ul.nav>li>a.active {
 }
 
 .doc-name {
-  color: white;
+  color: #16356f;
+  font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .deletebtn {
@@ -409,11 +428,12 @@ span#rangeValue {
 
 /* Uploaded-files list item styling */
 .doc-list li {
-  background: #2c65d1;
+  background: #eef3ff;
   margin: 5px 0;
   padding: 8px;
-  border-radius: 5px;
-  word-break: break-all;
+  border-radius: 10px;
+  word-break: break-word;
+  border: 1px solid #d8e3ff;
 
   /* New: Use Flexbox to align name and delete icon */
   display: flex;
@@ -576,14 +596,45 @@ span#rangeValue {
 
 }
 
-.quiz-actions {
+.generate-row,
+.submit-row {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.quiz-actions #submitQuizBtn,
-.quiz-actions #export-options .exportpdf {
+.submit-row #submitQuizBtn,
+.submit-row #export-options .exportpdf {
+  margin-bottom: 0;
+}
+
+/* Issue 2 — same height, vertically centred for generate-row buttons */
+.generate-row>.question-toggle-btn {
+  padding: 10px 20px;
+  background: #1e4ea8;
+  border: 1px solid #1e4ea8;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  margin-bottom: 0;
+}
+
+.generate-row>.question-toggle-btn:hover {
+  background: #0b5ed7;
+  border-color: #0b5ed7;
+}
+
+.generate-row .btn.mybutton {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: 0;
 }
 
@@ -662,33 +713,55 @@ footer {
 
 
 .sidebar-nav-bottom {
-  display: none;
+  display: block;
+  margin-top: auto;
+  padding: 0 12px 12px;
+}
+
+.upload-sidebar-auth-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .sidebar-nav-bottom .nav-link {
   display: flex;
-  background: #15408a;
+  background: #eef3ff;
   align-items: center;
   justify-content: flex-start;
-  gap: 2px;
-  color: white;
-  /* border: 1px solid #fff; */
+  gap: 10px;
+  color: #16356f;
   text-decoration: none;
-  font-size: 16px;
-  padding: 5px 20px;
-  margin: 1px;
-  transition: background 0.3s;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 10px 14px;
+  margin: 0 0 6px;
+  transition: background 0.3s, color 0.3s, border-color 0.3s;
+  border: 1px solid #d8e3ff;
+  border-radius: 10px;
 }
 
 .sidebar-nav-bottom .nav-link:hover {
-  background: #2c65d1;
+  background: #dfe9ff;
   transition: all 0.3s;
+}
+
+.sidebar-nav-bottom .nav-link.is-active {
+  background: #1e4ea8;
+  color: #fff;
+  border-color: transparent;
 }
 
 .sidebar-nav-bottom .sa-sidebar-auth {
   list-style: none;
-  margin: 10px 0 0;
+  margin: 0;
   padding: 0;
+}
+
+
+
+.sidebar-nav-bottom .sa-sidebar-auth+.sa-sidebar-auth {
+  margin-top: 6px;
 }
 
 .sidebar-nav-bottom .sa-signin-btn {
@@ -697,6 +770,26 @@ footer {
   justify-content: flex-start;
   padding: 10px 14px;
   box-shadow: none;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.sidebar-nav-bottom .sa-settings-btn {
+  background: #eef3ff;
+  color: #16356f;
+  border: 1px solid #d8e3ff;
+}
+
+.sidebar-nav-bottom .sa-settings-btn:hover {
+  background: #dfe9ff;
+}
+
+.sidebar-nav-bottom .sa-logout-btn {
+  background: rgb(229, 198, 86);
+  color: #1f1f1f;
+  border: 0;
 }
 
 /* --- Hide text when collapsed --- */
@@ -919,6 +1012,93 @@ footer {
   font-size: 13px;
 }
 
+/* Layout for quiz area: list left, results right on desktop; stacked on mobile */
+.quiz-columns {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.quiz-results-container {
+  display: none;
+  /* shown when populated */
+  flex-direction: column;
+}
+
+@media (max-width: 667px) {
+
+  /* On mobile show results full-width and appear after actions (use order) */
+  .quiz-columns {
+    flex-direction: column;
+  }
+
+  /* On mobile make results full-width and appear after the left column (questions + actions) */
+  #examSummary,
+  #quiz-results {
+    width: 100% !important;
+    order: 3;
+    margin-top: 12px;
+  }
+
+  .quiz-left {
+    order: 1;
+  }
+
+  .generate-row,
+  .submit-row {
+    order: 2;
+  }
+}
+
+.quiz-result-card {
+  flex: 1;
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 15px;
+  border: 1px solid #ddd;
+  margin-bottom: 12px;
+}
+
+.quiz-result-card h3 {
+  margin-bottom: 10px;
+  color: #2f5db3;
+}
+
+.quiz-progress-bar {
+  width: 100%;
+  height: 12px;
+  background: #eee;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.quiz-progress {
+  height: 100%;
+}
+
+.quiz-progress-correct {
+  background: #4caf50;
+}
+
+.quiz-progress-fail {
+  background: #dc2626;
+}
+
+.quiz-view-results-btn {
+  display: inline-block;
+  background: #2f5db3;
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 500;
+  margin-top: 10px;
+}
+
+.quiz-view-results-btn:hover {
+  background: #244a92;
+}
+
 
 /* ------------------ Responsive ------------------ */
 @media (max-width: 667px) {
@@ -976,18 +1156,9 @@ footer {
     display: none;
   }
 
-  /* Mobile header (acts as top navbar) */
+  /* Mobile header replaced by sa-navbar from base.html */
   .mobile-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: linear-gradient(135deg, #1f3c88, #3268d6);
-    color: white;
-    padding: 0 20px;
-    min-height: 60px;
-    position: sticky;
-    top: 0;
-    z-index: 1001;
+    display: none;
   }
 
   .mobile-header .brand {
@@ -1026,7 +1197,7 @@ footer {
   }
 
   .sidebar-nav-bottom .sa-signin-btn {
-    margin: 8px 0 0;
+    margin: 0;
   }
 
   /* Optional overlay blur effect */
@@ -1051,23 +1222,57 @@ footer {
     min-height: auto;
   }
 
-  .quiz-actions {
+  .generate-row,
+  .submit-row {
     gap: 8px;
   }
 
-  .quiz-actions #submitQuizBtn,
-  .quiz-actions #export-options {
+  .generate-row>button,
+  .submit-row>button {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  /* Make simulation toggle and generate buttons same height */
+  .generate-row>.question-toggle-btn,
+  .generate-row .btn.mybutton {
+    display: inline-flex;
+    align-items: center;
+    padding: 10px 20px;
+    border-radius: 8px;
+    min-height: 44px;
+  }
+
+  /* Ensure generate-row children match height and center content */
+  .generate-row>* {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+  }
+
+  /* Force generate-row controls to identical height and padding */
+  .generate-row>.question-toggle-btn,
+  .generate-row>.btn.mybutton {
+    padding: 10px 20px;
+    min-height: 44px;
+    height: 44px;
+    box-sizing: border-box;
+  }
+
+  .submit-row #submitQuizBtn,
+  .submit-row #export-options {
     flex: 1 1 0;
     max-width: none;
   }
 
-  .quiz-actions #submitQuizBtn,
-  .quiz-actions #export-options .exportpdf {
+  .submit-row #submitQuizBtn,
+  .submit-row #export-options .exportpdf {
     width: 100%;
     margin-bottom: 0;
   }
 
-  .quiz-actions #export-options .exportpdf {
+  .submit-row #export-options .exportpdf {
     display: block;
   }
 
@@ -1288,8 +1493,15 @@ footer {
 }
 
 @keyframes explanation-slide-in {
-  from { opacity: 0; transform: translateY(-4px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 
@@ -1816,6 +2028,206 @@ body.menu-open {
   max-height: 900px;
 }
 
+/* Simulation settings styling */
+.sim-settings-panel {
+  border: 1px solid #e6e6e6;
+  padding: 12px;
+  border-radius: 8px;
+  background: #fbfdff;
+  max-width: 420px;
+  margin-top: 5px;
+}
+
+.sim-settings-panel .sim-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sim-toggle-field {
+  padding-bottom: 4px;
+  border-bottom: 1px solid #e6edf8;
+  margin-bottom: 4px;
+}
+
+.sim-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.sim-toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sim-toggle-slider {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  border-radius: 999px;
+  background: #d5def1;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+}
+
+.sim-toggle-slider::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18);
+  transition: transform 0.2s ease;
+}
+
+.sim-toggle input:checked ~ .sim-toggle-slider {
+  background: #1e4ea8;
+}
+
+.sim-toggle input:checked ~ .sim-toggle-slider::after {
+  transform: translateX(20px);
+}
+
+.sim-toggle-state-off,
+.sim-toggle-state-on {
+  font-size: 0.86rem;
+  font-weight: 600;
+  transition: color 0.2s, font-weight 0.2s;
+}
+
+.sim-toggle-state-off {
+  color: #334155;
+}
+
+.sim-toggle-state-on {
+  color: #94a3b8;
+}
+
+.sim-toggle input:checked ~ .sim-toggle-state-off {
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.sim-toggle input:checked ~ .sim-toggle-state-on {
+  color: #1e4ea8;
+  font-weight: 700;
+}
+
+.simulation-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #eef3ff;
+  border: 1px solid #d8e3ff;
+}
+
+.simulation-badge {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #1e4ea8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.simulation-timer {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #16356f;
+  font-variant-numeric: tabular-nums;
+}
+
+.sim-settings-panel .form-control {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  width: 140px;
+}
+
+@media (max-width: 667px) {
+  .sim-settings-panel {
+    max-width: 100%;
+  }
+
+  .sim-settings-panel {
+    flex-direction: row;
+  }
+
+  .sim-settings-panel .sim-field {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .sim-settings-panel .form-control {
+    width: 48%;
+  }
+
+  .generate-row,
+  .submit-row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* On mobile make quiz action buttons stack by default and be full width */
+  .generate-row,
+  .submit-row {
+    flex-direction: column;
+  }
+
+  .generate-row .btn,
+  .generate-row>.question-toggle-btn,
+  .submit-row .btn {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+  }
+
+  /* Submit / Export row on mobile: two buttons side-by-side full width */
+  .submit-row {
+    flex-direction: row;
+    gap: 8px;
+  }
+
+  .submit-row>* {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  /* For the generate-row, show two buttons side-by-side at half width on narrow screens */
+  .generate-row {
+    flex-direction: row;
+    gap: 8px;
+  }
+
+  .generate-row>* {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .generate-row>*+* {
+    margin-left: 8px;
+  }
+
+  /* Reduce font size & padding of action buttons on mobile for a tighter fit */
+  .generate-row .btn.mybutton,
+  .generate-row>.question-toggle-btn {
+    font-size: 13px;
+    padding: 8px 12px;
+  }
+}
+
 /* ==========================================================================
    Mobile-only Upload Section
    ========================================================================== */
@@ -1980,4 +2392,29 @@ body.menu-open {
     text-align: center;
     word-break: break-all;
   }
+}
+/* Floating simulation countdown — appears bottom-right when banner is scrolled out of view */
+.sim-floating-timer {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  background: #1e4ea8;
+  color: #fff;
+  border-radius: 50px;
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.28);
+  z-index: 1200;
+  cursor: default;
+  user-select: none;
+  transition: opacity 0.2s;
+}
+
+.sim-floating-icon {
+  font-size: 1.1rem;
 }

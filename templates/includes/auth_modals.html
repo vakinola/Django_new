@@ -152,7 +152,10 @@
         <form id="emailSignupForm" class="sa-email-form" method="post" action="{% url 'register' %}">
             {% csrf_token %}
             <input type="hidden" name="next" value="{{ request.get_full_path }}">
-            <input type="text" name="name" class="sa-email-input" placeholder="Your name" required>
+            <div class="sa-name-row">
+                <input type="text" name="first_name" class="sa-email-input" placeholder="First name" required>
+                <input type="text" name="last_name" class="sa-email-input" placeholder="Last name" required>
+            </div>
             <input type="email" name="email" class="sa-email-input" placeholder="your.email@example.com" required>
             <input type="password" name="password" class="sa-email-input" placeholder="Password" required minlength="8"
                 autocomplete="new-password" title="Password must be at least 8 characters long.">

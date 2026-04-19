@@ -173,7 +173,7 @@ body.upload-page main {
     justify-content: flex-start !important;
 }
 
-body.upload-page .sa-navbar li,
+body.upload-page .sa-navbar li:not(.sa-sidebar-header):not(.sa-sidebar-user-card):not(.sa-sidebar-spacer),
 body.upload-page .sa-nav-links li {
     background: transparent !important;
 }
@@ -232,8 +232,7 @@ body.upload-page #sidebar.collapsed {
 }
 
 @media (max-width: 667px) {
-    body.upload-page header,
-    body.upload-page .sa-navbar {
+    body.upload-page .mobile-header {
         display: none !important;
     }
 

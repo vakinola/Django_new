@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Page Title | StudyAssists{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'fonts/poppins/stylesheet.css' %}">
+<style>
+    /* Page-specific styles go here */
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container page-wrap">
+
+    <!-- ========== MAIN ========== -->
+    <main class="main" id="main">
+
+        <div class="flash-container">
+            {% if messages %}
+            {% for message in messages %}
+            {% if "auth-login" not in message.tags and "auth-signup" not in message.tags %}
+            <div class="flash flash-{{ message.level_tag }}" data-message-tags="{{ message.tags }}">
+                <span class="flash-message">{{ message }}</span>
+                <button class="flash-close" onclick="this.parentElement.remove()" aria-label="Dismiss">×</button>
+            </div>
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+        </div>
+
+        <!-- Page content goes here -->
+
+    </main>
+    <!-- /MAIN -->
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% endblock %}

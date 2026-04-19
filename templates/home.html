@@ -30,10 +30,22 @@
 
     <link rel="shortcut icon" type="image/x-icon" href="{% static 'img/favicon.png' %}">
     <link rel="stylesheet" href="{% static 'fonts/poppins/stylesheet.css' %}">
+    <link rel="stylesheet" href="{% static 'css/base.css' %}">
     <link rel="stylesheet" href="{% static 'css/general.css' %}">
 
     <link rel="icon" type="image/svg+xml" href="{% static 'img/favicon.svg' %}">
     <style>
+        .sa-navbar,
+        footer {
+            background: transparent;
+        }
+
+        footer,
+        footer a,
+        footer p {
+            color: #202020;
+        }
+
         /* privacy terms size for create account modal */
 
 
@@ -102,20 +114,20 @@
 
 
         @media (max-width: 768px) {
-            .hero-section:before {
-
-                display: none;
-
-            }
-
             .sa-navbar,
             footer {
                 background: linear-gradient(135deg, #1f3c88, #3268d6);
             }
 
             .brand-text,
-            footer {
-                color: white;
+            footer,
+            footer a,
+            footer p {
+                color: #fff;
+            }
+
+            .hero-section:before {
+                display: none;
             }
         }
     </style>
@@ -162,11 +174,36 @@
             </ul>
 
             {% if request.user.is_authenticated %}
-            <form method="post" action="{% url 'logout' %}">
-                {% csrf_token %}
-                <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                <button type="submit" class="sa-desktop-login sa-logout-btn">{% trans "Log out" %}</button>
-            </form>
+            <!-- Desktop: avatar circle with dropdown -->
+            <div class="sa-desktop-user" id="desktopUserMenu">
+                <button class="sa-desktop-avatar-btn" id="desktopAvatarBtn" aria-label="User menu" aria-expanded="false">
+                    {% with profile=request.user.profile %}
+                    {% if profile.profile_image %}
+                    <img src="{{ profile.profile_image.url }}" alt="Profile" class="sa-desktop-avatar-img">
+                    {% else %}
+                    <span class="sa-desktop-avatar-initials">{{ request.user.first_name|default:request.user.email|first|upper }}</span>
+                    {% endif %}
+                    {% endwith %}
+                </button>
+                <div class="sa-desktop-dropdown" id="desktopDropdown" aria-hidden="true">
+                    <a href="{% url 'settings_page' %}" class="sa-dropdown-item">
+                        <svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="currentColor">
+                            <path d="m370-80-16-128q-13-5-24.5-12T307-235l-119 50L78-375l103-78q-1-7-1-13.5v-27q0-6.5 1-13.5L78-585l110-190 119 50q11-8 23-15t24-12l16-128h220l16 128q13 5 24.5 12t22.5 15l119-50 110 190-103 78q1 7 1 13.5v27q0 6.5-2 13.5l103 78-110 190-118-50q-11 8-23 15t-24 12L590-80H370Zm70-80h79l14-106q31-8 57.5-23.5T639-327l99 41 39-68-86-65q5-14 7-29.5t2-31.5q0-16-2-31.5t-7-29.5l86-65-39-68-99 42q-22-23-48.5-38.5T533-694l-13-106h-79l-14 106q-31 8-57.5 23.5T321-633l-99-41-39 68 86 64q-5 15-7 30t-2 32q0 16 2 31t7 30l-86 65 39 68 99-42q22 23 48.5 38.5T427-266l13 106Zm42-180q58 0 99-41t41-99q0-58-41-99t-99-41q-59 0-99.5 41T342-480q0 58 40.5 99t99.5 41Zm-2-140Z"/>
+                        </svg>
+                        {% trans "Settings" %}
+                    </a>
+                    <form method="post" action="{% url 'logout' %}" class="sa-dropdown-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <button type="submit" class="sa-dropdown-item sa-dropdown-logout">
+                            <svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="currentColor">
+                                <path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h280v80H200Zm440-160-55-58 102-102H360v-80h327L585-622l55-58 200 200-200 200Z"/>
+                            </svg>
+                            {% trans "Log out" %}
+                        </button>
+                    </form>
+                </div>
+            </div>
             {% else %}
             <a href="#" class="sa-desktop-login sa-open-login">{% trans "Sign in" %}</a>
             {% endif %}
@@ -179,6 +216,7 @@
         </svg>
 
         <ul class="sa-sidebar">
+            <!-- Header -->
             <li class="sa-sidebar-header">
                 <a class="sa-brand" href="{% url 'home' %}" aria-label="Study Assist home">
                     <svg class="brand-icon" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
@@ -193,7 +231,28 @@
                         d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z" />
                 </svg>
             </li>
-            <li class="sa-sidebar-spacer" aria-hidden="true"></li>
+
+            <!-- User card (authenticated only) -->
+            {% if request.user.is_authenticated %}
+            <li class="sa-sidebar-user-card" aria-label="Signed in user">
+                {% with profile=request.user.profile %}
+                <div class="sa-sidebar-avatar">
+                    {% if profile.profile_image %}
+                    <img src="{{ profile.profile_image.url }}" alt="Profile" class="sa-avatar-img">
+                    {% else %}
+                    <span class="sa-avatar-initials">{{ request.user.first_name|default:request.user.email|first|upper }}</span>
+                    {% endif %}
+                </div>
+                {% endwith %}
+                <div class="sa-sidebar-user-info">
+                    <span class="sa-sidebar-user-name">{{ request.user.get_full_name|default:request.user.first_name|default:"User" }}</span>
+                    <span class="sa-sidebar-user-email">{{ request.user.email }}</span>
+                </div>
+                <div class="sa-sidebar-nav-divider" aria-hidden="true"></div>
+            </li>
+            {% endif %}
+
+            <!-- Nav links -->
             <li class="{% if current_url == 'home' or current_url == 'root' %}is-active{% endif %}"><a
                     class="{% if current_url == 'home' or current_url == 'root' %}is-active{% endif %}"
                     href="{% url 'home' %}">{% trans "Home" %}</a></li>
@@ -203,6 +262,9 @@
             <li class="{% if current_url == 'results' %}is-active{% endif %}"><a
                     class="{% if current_url == 'results' %}is-active{% endif %}" href="{% url 'results' %}">{% trans "Results" %}</a></li>
             <li><a href="#" class="sa-open-feedback">{% trans "Feedback" %}</a></li>
+
+            <!-- Spacer pushes auth to bottom -->
+            <li class="sa-sidebar-spacer" aria-hidden="true"></li>
 
             {% include 'includes/sidebar_signin.html' %}
         </ul>
@@ -264,6 +326,28 @@
 
     <!-- Cookie consent dialog -->
     {% include 'includes/cookie_consent.html' %}
+
+    {% if request.user.is_authenticated %}
+    <script>
+        (function () {
+            const btn = document.getElementById('desktopAvatarBtn');
+            const dropdown = document.getElementById('desktopDropdown');
+            if (!btn || !dropdown) return;
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                const open = dropdown.classList.toggle('active');
+                btn.setAttribute('aria-expanded', open);
+                dropdown.setAttribute('aria-hidden', !open);
+            });
+            document.addEventListener('click', function () {
+                dropdown.classList.remove('active');
+                btn.setAttribute('aria-expanded', 'false');
+                dropdown.setAttribute('aria-hidden', 'true');
+            });
+            dropdown.addEventListener('click', function (e) { e.stopPropagation(); });
+        })();
+    </script>
+    {% endif %}
 
 </body>
 
