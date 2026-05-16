@@ -27,7 +27,9 @@
 .sa-field-error {
     font-size: 12px;
     color: #e53e3e;
-    margin: -10px 0 10px;
+    margin: 0;
+    display: none;
+    text-align: left;
 }
 
 .sa-input-error {
@@ -178,6 +180,7 @@ footer {
     left: 0;
     width: 250px;
     height: 100vh;
+    height: 100dvh; /* dynamic viewport height — accounts for iOS Safari browser chrome */
     background: linear-gradient(135deg, #1f3c88, #3268d6);
     flex-direction: column;
     padding: 10px 0;
@@ -747,6 +750,40 @@ footer {
     color: #999;
 }
 
+/* Password field with visibility toggle */
+.sa-password-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.sa-password-wrapper .sa-email-input {
+    padding-right: 44px;
+}
+
+.sa-password-toggle {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    line-height: 1;
+    transition: color 0.2s;
+    -webkit-tap-highlight-color: transparent;
+    z-index: 1;
+}
+
+.sa-password-toggle:hover {
+    color: #3268d6;
+}
+
 /* Remember me + forgot password row */
 .sa-remember-row {
     display: flex;
@@ -1151,6 +1188,11 @@ footer {
 
     .sa-sidebar li:not(.sa-sidebar-header):not(.sa-sidebar-spacer) {
         margin-bottom: 6px;
+    }
+
+    /* Ensure sign-in button clears iOS home indicator / browser chrome */
+    .sa-sidebar .sa-sidebar-auth:last-of-type {
+        padding-bottom: max(6px, env(safe-area-inset-bottom));
     }
 
     .sa-sidebar li a {
